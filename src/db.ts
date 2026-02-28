@@ -14,23 +14,18 @@ db.run(`
     id TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL,
     burn_after_read INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL,
     delete_token TEXT NOT NULL
   );
 `);
 
-const insertStmt = db.prepare<
-  void,
-  [string, number, number, number, string]
->(
-  "INSERT INTO files (id, expires_at, burn_after_read, created_at, delete_token) VALUES (?, ?, ?, ?, ?)",
+const insertStmt = db.prepare<void, [string, number, number, string]>(
+  "INSERT INTO files (id, expires_at, burn_after_read, delete_token) VALUES (?, ?, ?, ?)",
 );
 
 type FileRow = {
   id: string;
   expires_at: number;
   burn_after_read: number;
-  created_at: number;
   delete_token: string;
 };
 
@@ -58,13 +53,7 @@ export function createFile(
   burnAfterRead: boolean,
   deleteToken: string,
 ): void {
-  insertStmt.run(
-    id,
-    expiresAt,
-    burnAfterRead ? 1 : 0,
-    Math.floor(Date.now() / 1000),
-    deleteToken,
-  );
+  insertStmt.run(id, expiresAt, burnAfterRead ? 1 : 0, deleteToken);
 }
 
 // Read-only lookup — does not trigger burn-after-read or delete expired rows
