@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { createFile, getFile, peekFile, unlinkFile } from "../db.ts";
-import { rateLimit } from "../middleware/rateLimit.ts";
 import { config } from "../config.ts";
 
 const DURATION_UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
@@ -18,7 +17,7 @@ const MAX_TTL = parseDuration(config.maxTtl)!;
 
 const file = new Hono();
 
-file.post("/", rateLimit, async (c) => {
+file.post("/", async (c) => {
   const formData = await c.req.formData();
   const fileField = formData.get("file");
   const expiresIn = formData.get("expiresIn");
