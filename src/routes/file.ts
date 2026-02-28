@@ -2,7 +2,12 @@ import { Hono } from "hono";
 import { createFile, getFile, peekFile, unlinkFile } from "../db.ts";
 import { config } from "../config.ts";
 
-const DURATION_UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+const DURATION_UNITS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400,
+};
 
 function parseDuration(s: string): number | undefined {
   const n = parseInt(s);
@@ -61,10 +66,27 @@ file.post("/", async (c) => {
   return c.json({ id, deleteToken });
 });
 
-file.on(["HEAD", "GET"], "/:id", (c) => {
+file.get("/:id/info", (c) => {
   const id = c.req.param("id");
-  const isHead = c.req.method === "HEAD";
-  const row = isHead ? peekFile(id) : getFile(id);
+  const row = peekFile(id);
+
+  if (!row) {
+    return c.json({ error: "File not found or expired" }, 404);
+  }
+
+  const bunFile = Bun.file(`${FILES_DIR}/${id}`);
+
+  return c.json({
+    id,
+    expiresAt: row.expires_at,
+    burnAfterRead: row.burn_after_read === 1,
+    size: bunFile.size,
+  });
+});
+
+file.get("/:id", (c) => {
+  const id = c.req.param("id");
+  const row = getFile(id);
 
   if (!row) {
     return c.json({ error: "File not found or expired" }, 404);
@@ -76,17 +98,13 @@ file.on(["HEAD", "GET"], "/:id", (c) => {
   const headers = new Headers({
     "Content-Type": "application/octet-stream",
     "Content-Length": String(bunFile.size),
-    "X-Expires-At": String(row.expires_at),
-    "X-Burn-After-Read": row.burn_after_read ? "1" : "0",
   });
 
-  const response = new Response(bunFile, { headers });
-
-  if (!isHead && row.burn_after_read) {
+  if (row.burn_after_read) {
     setTimeout(() => unlinkFile(id), 0);
   }
 
-  return response;
+  return new Response(bunFile, { headers });
 });
 
 export default file;

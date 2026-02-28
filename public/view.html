@@ -19,7 +19,7 @@
         >
       </h1>
 
-      <!-- Metadata card (shown after HEAD) -->
+      <!-- Metadata card (shown after /info) -->
       <div id="meta" class="hidden">
         <div class="font-mono text-base mb-1" id="meta-name"></div>
         <div class="flex gap-3 text-muted text-xs mb-1">
@@ -262,16 +262,14 @@
 
         const key = await importKey(keyEncoded);
 
-        // HEAD — get metadata without fetching or burning the file
-        const headRes = await fetch(`/api/file/${id}`, { method: "HEAD" });
-        if (!headRes.ok) {
+        // /info — get metadata without fetching or burning the file
+        const infoRes = await fetch(`/api/file/${id}/info`);
+        if (!infoRes.ok) {
           errorEl.textContent = "File not found or expired.";
           return;
         }
 
-        const burnAfterRead = headRes.headers.get("X-Burn-After-Read") === "1";
-        const expiresAt = parseInt(headRes.headers.get("X-Expires-At") || "0");
-        const size = parseInt(headRes.headers.get("Content-Length") || "0");
+        const { burnAfterRead, expiresAt, size } = await infoRes.json();
 
         metaName.textContent = "Encrypted file";
         metaSize.textContent = formatBytes(size);
