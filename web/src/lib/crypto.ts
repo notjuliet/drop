@@ -22,7 +22,7 @@ export async function generateKey() {
   };
 }
 
-export async function importKey(encoded) {
+export async function importKey(encoded: string) {
   const raw = Uint8Array.fromBase64(encoded, { alphabet: "base64url" });
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, [
     "encrypt",
@@ -32,7 +32,11 @@ export async function importKey(encoded) {
 
 // Pack: [u16 filenameLen][u64 fileLen][filename][file][zero padding to 4K boundary]
 // Then encrypt the whole thing as one AES-GCM ciphertext.
-export async function encrypt(fileName, fileBuffer, key) {
+export async function encrypt(
+  fileName: string,
+  fileBuffer: ArrayBuffer,
+  key: CryptoKey,
+) {
   const nameBytes = new TextEncoder().encode(fileName);
   if (nameBytes.length > 0xffff) throw new Error("Filename too long");
 
@@ -60,7 +64,7 @@ export async function encrypt(fileName, fileBuffer, key) {
 }
 
 // Decrypt and unpack — returns { fileName, fileData }
-export async function decrypt(ciphertext, key) {
+export async function decrypt(ciphertext: Uint8Array, key: CryptoKey) {
   const plain = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: IV },
     key,

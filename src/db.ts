@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, unlinkSync } from "fs";
+
 import { config } from "./config.ts";
 
 const DATA_DIR = config.dataDir;

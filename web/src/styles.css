@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@source "../public";
+@source "../src";
 
 @theme {
   --color-bg: var(--c-bg);

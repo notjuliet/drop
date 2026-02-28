@@ -1,20 +1,22 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
-import file from "./routes/file.ts";
-import { cleanExpired } from "./db.ts";
+
 import { config } from "./config.ts";
+import { cleanExpired } from "./db.ts";
+import file from "./routes/file.ts";
 
 const app = new Hono();
 
 app.route("/api/file", file);
 
-app.get("/p/:id", () => {
-  return new Response(Bun.file("public/view.html"), {
+app.use("/*", serveStatic({ root: "./web/dist" }));
+
+// SPA catch-all: serve index.html for unmatched routes
+app.get("/*", () => {
+  return new Response(Bun.file("web/dist/index.html"), {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 });
-
-app.use("/*", serveStatic({ root: "./public" }));
 
 // Clean expired uploads every 5 minutes
 setInterval(cleanExpired, 5 * 60 * 1000);

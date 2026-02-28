@@ -1,21 +1,21 @@
 {
   "name": "drop",
-  "module": "src/index.ts",
-  "type": "module",
   "private": true,
+  "type": "module",
+  "module": "src/index.ts",
   "scripts": {
-    "build:css": "bunx @tailwindcss/cli -i src/styles.css -o public/style.css --minify",
-    "dev": "bunx @tailwindcss/cli -i src/styles.css -o public/style.css --watch & bun run --hot src/index.ts",
-    "start": "bun run build:css && bun run src/index.ts"
-  },
-  "devDependencies": {
-    "@tailwindcss/cli": "^4.2.1",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.3"
+    "dev": "cd web && bun run dev & bun run --hot src/index.ts",
+    "build": "cd web && bun install && bun run build",
+    "start": "bun run build && bun run src/index.ts"
   },
   "dependencies": {
     "hono": "^4.12.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "oxfmt": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
   }
 }
