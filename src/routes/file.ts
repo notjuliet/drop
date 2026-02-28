@@ -49,7 +49,6 @@ file.post("/", async (c) => {
   }
 
   const id = crypto.randomUUID();
-  const deleteToken = crypto.randomUUID();
   const expiresAt = Math.floor(Date.now() / 1000) + expiresInSec;
   const filePath = `${FILES_DIR}/${id}`;
 
@@ -57,13 +56,13 @@ file.post("/", async (c) => {
   await Bun.write(filePath, buffer);
 
   try {
-    createFile(id, expiresAt, burnAfterRead, deleteToken);
+    createFile(id, expiresAt, burnAfterRead);
   } catch (err) {
     unlinkFile(id);
     throw err;
   }
 
-  return c.json({ id, deleteToken });
+  return c.json({ id });
 });
 
 file.get("/:id/info", (c) => {

@@ -13,20 +13,18 @@ db.run(`
   CREATE TABLE IF NOT EXISTS files (
     id TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL,
-    burn_after_read INTEGER NOT NULL DEFAULT 0,
-    delete_token TEXT NOT NULL
+    burn_after_read INTEGER NOT NULL DEFAULT 0
   );
 `);
 
-const insertStmt = db.prepare<void, [string, number, number, string]>(
-  "INSERT INTO files (id, expires_at, burn_after_read, delete_token) VALUES (?, ?, ?, ?)",
+const insertStmt = db.prepare<void, [string, number, number]>(
+  "INSERT INTO files (id, expires_at, burn_after_read) VALUES (?, ?, ?)",
 );
 
 type FileRow = {
   id: string;
   expires_at: number;
   burn_after_read: number;
-  delete_token: string;
 };
 
 const selectStmt = db.prepare<FileRow, [string]>(
@@ -39,10 +37,6 @@ const burnStmt = db.prepare<FileRow, [string]>(
   "DELETE FROM files WHERE id = ? AND burn_after_read = 1 RETURNING *",
 );
 
-const deleteWithTokenStmt = db.prepare<void, [string, string]>(
-  "DELETE FROM files WHERE id = ? AND delete_token = ?",
-);
-
 const cleanStmt = db.prepare<{ id: string }, [number]>(
   "DELETE FROM files WHERE expires_at <= ? RETURNING id",
 );
@@ -51,9 +45,8 @@ export function createFile(
   id: string,
   expiresAt: number,
   burnAfterRead: boolean,
-  deleteToken: string,
 ): void {
-  insertStmt.run(id, expiresAt, burnAfterRead ? 1 : 0, deleteToken);
+  insertStmt.run(id, expiresAt, burnAfterRead ? 1 : 0);
 }
 
 // Read-only lookup — does not trigger burn-after-read or delete expired rows
@@ -85,13 +78,6 @@ export function unlinkFile(id: string): void {
   try {
     unlinkSync(`${FILES_DIR}/${id}`);
   } catch {}
-}
-
-export function deleteFile(id: string, token: string): boolean {
-  const result = deleteWithTokenStmt.run(id, token);
-  if (!result.changes) return false;
-  unlinkFile(id);
-  return true;
 }
 
 export function cleanExpired(): void {

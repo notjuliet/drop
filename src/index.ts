@@ -1,14 +1,12 @@
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import file from "./routes/file.ts";
-import del from "./routes/delete.ts";
 import { cleanExpired } from "./db.ts";
 import { config } from "./config.ts";
 
 const app = new Hono();
 
 app.route("/api/file", file);
-app.route("/delete", del);
 
 app.get("/p/:id", () => {
   return new Response(Bun.file("public/view.html"), {

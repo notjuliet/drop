@@ -119,19 +119,6 @@
             Copy
           </button>
         </div>
-        <div class="mt-3 flex items-center gap-2">
-          <a
-            id="delete-url"
-            href="#"
-            class="text-xs text-muted hover:text-text transition-colors font-mono truncate"
-          ></a>
-          <button
-            id="copy-delete"
-            class="text-xs text-muted hover:text-text bg-transparent border-none cursor-pointer p-0 underline shrink-0"
-          >
-            Copy
-          </button>
-        </div>
       </div>
     </div>
 
@@ -157,8 +144,6 @@
       const linkInput = document.getElementById("link-input");
       const linkEl = document.getElementById("link");
       const copyBtn = document.getElementById("copy");
-      const deleteUrlEl = document.getElementById("delete-url");
-      const copyDeleteBtn = document.getElementById("copy-delete");
       const errorEl = document.getElementById("error");
 
       let selectedFile = null;
@@ -269,13 +254,10 @@
             xhr.send(formData);
           });
 
-          const { id, deleteToken } = res;
+          const { id } = res;
           const url = `${location.origin}/p/${id}#${encoded}`;
-          const deleteUrl = `${location.origin}/delete/${id}?token=${deleteToken}`;
           linkEl.href = url;
           linkInput.value = url;
-          deleteUrlEl.href = deleteUrl;
-          deleteUrlEl.textContent = "Delete link";
           result.classList.remove("hidden");
           progressBar.classList.add("hidden");
         } catch (e) {
@@ -294,11 +276,6 @@
         setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
       });
 
-      copyDeleteBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(deleteUrlEl.href);
-        copyDeleteBtn.textContent = "Copied!";
-        setTimeout(() => (copyDeleteBtn.textContent = "Copy"), 1500);
-      });
     </script>
   </body>
 </html>
