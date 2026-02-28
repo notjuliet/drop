@@ -3,12 +3,6 @@ import { createFile, getFile, peekFile, unlinkFile } from "../db.ts";
 import { rateLimit } from "../middleware/rateLimit.ts";
 import { config } from "../config.ts";
 
-function randomId(length: number): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(Math.ceil(length * 3 / 4))))
-    .toString("base64url")
-    .slice(0, length);
-}
-
 const DURATION_UNITS: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
 
 function parseDuration(s: string): number | undefined {
@@ -50,8 +44,8 @@ file.post("/", rateLimit, async (c) => {
     return c.json({ error: "expiresIn exceeds maximum allowed TTL" }, 400);
   }
 
-  const id = randomId(12);
-  const deleteToken = randomId(32);
+  const id = crypto.randomUUID();
+  const deleteToken = crypto.randomUUID();
   const expiresAt = Math.floor(Date.now() / 1000) + expiresInSec;
   const filePath = `${FILES_DIR}/${id}`;
 
