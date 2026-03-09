@@ -200,7 +200,7 @@ export default function Upload() {
   return (
     <>
       <div
-        class="group relative mx-auto flex aspect-square w-[65vw] max-w-[500px] items-center justify-center"
+        class="group relative mx-auto flex aspect-square w-[80vw] max-w-[500px] items-center justify-center"
         onClick={() => fileInput.click()}
       >
         <svg
@@ -209,7 +209,7 @@ export default function Upload() {
         >
           <defs>
             <clipPath id="circle-clip">
-              <circle cx={CENTER} cy={CENTER} r={RADIUS - 2.5} />
+              <circle cx={CENTER} cy={CENTER} r={RADIUS - 3.5} />
             </clipPath>
           </defs>
           <style>{`@keyframes wave { from { transform: translateX(0) } to { transform: translateX(-${WAVE_LEN}px) } }`}</style>
@@ -219,8 +219,9 @@ export default function Upload() {
             r={RADIUS}
             fill="none"
             stroke={dragging() ? "var(--color-accent)" : "var(--color-border)"}
-            stroke-width="5"
-            stroke-dasharray={dragging() ? "6 4" : "none"}
+            stroke-width="7"
+            pathLength={dragging() ? "100" : undefined}
+            stroke-dasharray={dragging() ? "3 2" : "none"}
             class="transition-all duration-200"
           />
           <circle
@@ -229,13 +230,13 @@ export default function Upload() {
             r={RADIUS}
             fill="none"
             stroke={tooLarge() ? "var(--color-danger)" : "var(--color-accent)"}
-            stroke-width="5"
+            stroke-width="7"
             stroke-dasharray={`${CIRCUMFERENCE}`}
-            stroke-dashoffset={`${CIRCUMFERENCE * (1 - (uploading() ? 0 : sizeRatio()))}`}
+            stroke-dashoffset={`${CIRCUMFERENCE * (1 - (uploading() || dragging() ? 0 : sizeRatio()))}`}
             stroke-linecap="round"
             transform={`rotate(-90 ${CENTER} ${CENTER})`}
             style={{
-              transition: `all ${animDuration()}ms ease-out`,
+              transition: dragging() ? "none" : `all ${animDuration()}ms ease-out`,
             }}
           />
           {/* Upload liquid fill */}
@@ -252,7 +253,7 @@ export default function Upload() {
           </g>
         </svg>
 
-        <div class="z-10 flex flex-col items-center gap-3 text-center">
+        <div class="z-10 flex flex-col items-center gap-2 text-center sm:gap-3">
           <Show when={uploading()}>
             <span
               class="text-accent font-medium tabular-nums"
@@ -277,17 +278,17 @@ export default function Upload() {
               fallback={
                 <>
                   <span
-                    class="text-text truncate text-xs"
-                    style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
+                    class="text-text truncate"
+                    style={{
+                      "max-width": "clamp(120px, 40vw, 300px)",
+                      "font-size": "clamp(0.75rem, 2vw, 1rem)",
+                    }}
                   >
                     {file()!.name}
                   </span>
                   <span
-                    class={
-                      tooLarge()
-                        ? "text-danger text-xs font-medium"
-                        : "text-muted text-xs"
-                    }
+                    class={`font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                    style={{ "font-size": "clamp(0.625rem, 1.5vw, 0.875rem)" }}
                   >
                     {formatBytes(file()!.size)}
                     {tooLarge() ? ` / ${formatBytes(maxFileSize())} limit` : ""}
