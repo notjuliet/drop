@@ -3,11 +3,18 @@ import { serveStatic } from "hono/bun";
 
 import { config } from "./config.ts";
 import { cleanExpired } from "./db.ts";
-import file from "./routes/file.ts";
+import file from "./file.ts";
 
 const app = new Hono();
 
 app.route("/api/file", file);
+
+app.get("/api/info", (c) => {
+  return c.json({
+    maxFileSize: config.maxFileSize,
+    maxTtl: config.maxTtl,
+  });
+});
 
 app.use("/*", serveStatic({ root: "./web/dist" }));
 

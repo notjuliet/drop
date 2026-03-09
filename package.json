@@ -2,7 +2,6 @@
   "name": "drop",
   "private": true,
   "type": "module",
-  "module": "src/index.ts",
   "scripts": {
     "dev": "cd web && bun run dev & bun run --hot src/index.ts",
     "build": "cd web && bun install && bun run build",
