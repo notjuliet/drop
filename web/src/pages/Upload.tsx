@@ -11,12 +11,12 @@ export default function Upload() {
   const [error, setError] = createSignal("");
   const [resultUrl, setResultUrl] = createSignal("");
   const [dragging, setDragging] = createSignal(false);
+  const [burn, setBurn] = createSignal(false);
   const [maxFileSize, setMaxFileSize] = createSignal(0);
 
   let fileInput!: HTMLInputElement;
   let linkInput!: HTMLInputElement;
   let expiryInput!: HTMLInputElement;
-  let burnInput!: HTMLInputElement;
   let copyBtn!: HTMLButtonElement;
   let activeXhr: XMLHttpRequest | null = null;
 
@@ -66,8 +66,8 @@ export default function Upload() {
   });
 
   const statusText = () => {
-    if (encrypting()) return "Encrypting\u2026";
-    if (uploading()) return "Uploading\u2026";
+    if (encrypting()) return "encrypting\u2026";
+    if (uploading()) return "uploading\u2026";
     return "";
   };
 
@@ -146,7 +146,7 @@ export default function Upload() {
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));
       formData.append("expiresIn", expiryInput.value.trim());
-      formData.append("burnAfterRead", burnInput.checked ? "true" : "false");
+      formData.append("burnAfterRead", burn() ? "true" : "false");
 
       setEncrypting(false);
 
@@ -236,7 +236,9 @@ export default function Upload() {
             stroke-linecap="round"
             transform={`rotate(-90 ${CENTER} ${CENTER})`}
             style={{
-              transition: dragging() ? "none" : `all ${animDuration()}ms ease-out`,
+              transition: dragging()
+                ? "none"
+                : `all ${animDuration()}ms ease-out`,
             }}
           />
           {/* Upload liquid fill */}
@@ -302,7 +304,7 @@ export default function Upload() {
                       handleUpload();
                     }}
                   >
-                    Upload
+                    upload
                   </button>
                   <button
                     class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
@@ -320,7 +322,7 @@ export default function Upload() {
                 class="text-muted font-medium"
                 style={{ "font-size": "clamp(0.625rem, 2vw, 0.875rem)" }}
               >
-                Drop a file, or
+                drop a file, or
               </p>
               <button
                 class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
@@ -330,7 +332,7 @@ export default function Upload() {
                   fileInput.click();
                 }}
               >
-                Browse
+                browse
               </button>
               <Show when={maxFileSize()}>
                 <span class="text-muted text-[10px]">
@@ -351,17 +353,37 @@ export default function Upload() {
         />
       </div>
 
-      <div class="mt-4 flex items-center gap-4">
-        <input
-          ref={expiryInput!}
-          type="text"
-          value="24h"
-          placeholder="e.g. 30m, 24h, 7d"
-          class="bg-surface border-border text-text focus:border-accent w-24 rounded-md border px-2.5 py-1.5 text-xs transition-colors outline-none"
-        />
-        <label class="text-muted flex items-center gap-1.5 text-xs select-none">
-          <input type="checkbox" ref={burnInput!} class="accent-accent" />
-          Burn after read
+      <div class="mx-auto mt-6 flex w-fit flex-col gap-4 text-sm">
+        <label class="text-muted flex items-center gap-3 select-none">
+          lifetime
+          <input
+            ref={expiryInput!}
+            type="text"
+            value="24h"
+            placeholder="e.g. 30m, 24h, 7d"
+            class="bg-surface border-border text-accent focus:border-accent w-24 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none"
+          />
+        </label>
+        <label
+          class="text-muted flex items-center gap-3 select-none"
+          onClick={() => setBurn((b) => !b)}
+        >
+          burn after read
+          <div
+            class={`flex size-5 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
+          >
+            <Show when={burn()}>
+              <svg class="text-bg h-3.5 w-3.5" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M2 6l3 3 5-5"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </Show>
+          </div>
         </label>
       </div>
 
