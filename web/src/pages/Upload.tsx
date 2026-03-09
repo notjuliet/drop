@@ -24,6 +24,25 @@ export default function Upload() {
   const CENTER = RADIUS + 10;
   const SIZE = CENTER * 2;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+  const WAVE_AMP = 3;
+  const WAVE_LEN = RADIUS; // one full wave period
+
+  const wavePath = () => {
+    const topY = CENTER - RADIUS + 2 * RADIUS * (1 - progress() / 100);
+    const left = CENTER - RADIUS - WAVE_LEN;
+    const right = CENTER + RADIUS + WAVE_LEN;
+    const bottom = CENTER + RADIUS;
+    let d = `M ${left} ${bottom} V ${topY}`;
+    for (let x = left; x < right; x += WAVE_LEN / 2) {
+      const cx = x + WAVE_LEN / 4;
+      const ex = x + WAVE_LEN / 2;
+      const dir =
+        ((x - left) / (WAVE_LEN / 2)) % 2 === 0 ? -WAVE_AMP : WAVE_AMP;
+      d += ` Q ${cx} ${topY + dir} ${ex} ${topY}`;
+    }
+    d += ` V ${bottom} Z`;
+    return d;
+  };
 
   let prevRatio = 0;
   const sizeRatio = createMemo(() => {
@@ -193,6 +212,7 @@ export default function Upload() {
               <circle cx={CENTER} cy={CENTER} r={RADIUS - 2.5} />
             </clipPath>
           </defs>
+          <style>{`@keyframes wave { from { transform: translateX(0) } to { transform: translateX(-${WAVE_LEN}px) } }`}</style>
           <circle
             cx={CENTER}
             cy={CENTER}
@@ -219,16 +239,17 @@ export default function Upload() {
             }}
           />
           {/* Upload liquid fill */}
-          <rect
-            x={CENTER - RADIUS}
-            y={CENTER - RADIUS + 2 * RADIUS * (1 - progress() / 100)}
-            width={2 * RADIUS}
-            height={2 * RADIUS * (progress() / 100)}
-            fill="var(--color-accent)"
-            opacity="0.15"
-            clip-path="url(#circle-clip)"
-            class="transition-all duration-300 ease-out"
-          />
+          <g clip-path="url(#circle-clip)">
+            <path
+              d={wavePath()}
+              fill="var(--color-accent)"
+              opacity="0.15"
+              style={{
+                transition: "d 300ms ease-out",
+                animation: uploading() ? `wave 2s linear infinite` : "none",
+              }}
+            />
+          </g>
         </svg>
 
         <div class="z-10 flex flex-col items-center gap-1.5 text-center">
