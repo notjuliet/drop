@@ -181,15 +181,12 @@ export default function Upload() {
   return (
     <>
       <div
-        class="group relative mx-auto flex items-center justify-center"
-        style={{ width: `${SIZE}px`, height: `${SIZE}px` }}
+        class="group relative mx-auto flex aspect-square w-[65vw] max-w-[500px] items-center justify-center"
         onClick={() => fileInput.click()}
       >
         <svg
-          width={SIZE}
-          height={SIZE}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
-          class="absolute inset-0"
+          class="absolute inset-0 h-full w-full"
         >
           <defs>
             <clipPath id="circle-clip">
