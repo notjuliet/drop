@@ -252,12 +252,15 @@ export default function Upload() {
           </g>
         </svg>
 
-        <div class="z-10 flex flex-col items-center gap-1.5 text-center">
+        <div class="z-10 flex flex-col items-center gap-3 text-center">
           <Show when={uploading()}>
-            <span class="text-accent font-medium tabular-nums" style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}>
+            <span
+              class="text-accent font-medium tabular-nums"
+              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+            >
               {progress()}%
             </span>
-            <span class="text-muted text-[10px]">{statusText()}</span>
+            <span class="text-muted text-xs">{statusText()}</span>
             <button
               class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
               onClick={(e) => {
@@ -273,7 +276,10 @@ export default function Upload() {
               when={!file()}
               fallback={
                 <>
-                  <span class="text-text max-w-[160px] truncate font-mono text-xs">
+                  <span
+                    class="text-text truncate text-xs"
+                    style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
+                  >
                     {file()!.name}
                   </span>
                   <span
@@ -287,7 +293,8 @@ export default function Upload() {
                     {tooLarge() ? ` / ${formatBytes(maxFileSize())} limit` : ""}
                   </span>
                   <button
-                    class="bg-accent hover:bg-accent-hover mt-2 rounded-md border-none px-4 py-1.5 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    class="bg-accent hover:bg-accent-hover mt-2 rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
                     disabled={tooLarge()}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -308,8 +315,12 @@ export default function Upload() {
                 </>
               }
             >
-              <p class="text-muted font-medium" style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}>Drop a file</p>
-              <span class="text-muted" style={{ "font-size": "clamp(10px, 1.5vw, 14px)" }}>or</span>
+              <p
+                class="text-muted font-medium"
+                style={{ "font-size": "clamp(0.625rem, 2vw, 0.875rem)" }}
+              >
+                Drop a file, or
+              </p>
               <button
                 class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
                 style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}

@@ -2,6 +2,7 @@
 
 @theme {
   --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+  --font-sans: "Bricolage Grotesque", sans-serif;
 
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
