@@ -254,7 +254,7 @@ export default function Upload() {
 
         <div class="z-10 flex flex-col items-center gap-1.5 text-center">
           <Show when={uploading()}>
-            <span class="text-accent text-2xl font-medium tabular-nums">
+            <span class="text-accent font-medium tabular-nums" style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}>
               {progress()}%
             </span>
             <span class="text-muted text-[10px]">{statusText()}</span>
@@ -308,10 +308,11 @@ export default function Upload() {
                 </>
               }
             >
-              <p class="text-muted text-sm font-medium">Drop a file</p>
-              <span class="text-muted text-[10px]">or</span>
+              <p class="text-muted font-medium" style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}>Drop a file</p>
+              <span class="text-muted" style={{ "font-size": "clamp(10px, 1.5vw, 14px)" }}>or</span>
               <button
-                class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 text-sm font-medium text-white transition-colors"
+                class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
+                style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
                 onClick={(e) => {
                   e.stopPropagation();
                   fileInput.click();
