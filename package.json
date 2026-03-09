@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "cd web && bun run dev & bun run --hot src/index.ts",
-    "build": "cd web && bun install && bun run build",
-    "start": "bun run build && bun run src/index.ts"
+    "install:all": "bun install && bun install --cwd web",
+    "dev": "bun run install:all && bun run --cwd web dev & bun run --hot src/index.ts",
+    "build": "bun run --cwd web build",
+    "start": "bun run install:all && bun run build && bun run src/index.ts"
   },
   "dependencies": {
     "hono": "^4.12.3"

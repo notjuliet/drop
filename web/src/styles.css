@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-@source "../src";
-
 @theme {
+  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
+
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
   --color-border: var(--c-border);
@@ -12,11 +12,6 @@
   --color-accent-hover: var(--c-accent-hover);
   --color-accent-subtle: var(--c-accent-subtle);
   --color-danger: var(--c-danger);
-  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
-}
-
-html {
-  color-scheme: light dark;
 }
 
 :root {

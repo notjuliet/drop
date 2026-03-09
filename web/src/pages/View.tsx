@@ -118,9 +118,8 @@ export default function View() {
   };
 
   const viewRaw = () => {
-    const w = window.open();
-    if (w)
-      w.document.write(`<pre>${textContent().replace(/</g, "&lt;")}</pre>`);
+    const blob = new Blob([textContent()], { type: "text/plain" });
+    window.open(URL.createObjectURL(blob));
   };
 
   const saveFile = () => {
@@ -131,7 +130,7 @@ export default function View() {
     <>
       <Show when={stage() === "meta"}>
         <div>
-          <div class="mb-1 font-mono text-base">Encrypted file</div>
+          <div class="mb-1 text-base">Encrypted file</div>
           <div class="text-muted mb-1 flex gap-3 text-xs">
             <span>{formatBytes(size())}</span>
             <span>{formatExpiry(expiresAt())}</span>
@@ -151,7 +150,7 @@ export default function View() {
           </Show>
           <div class="mt-4">
             <button
-              class="bg-accent hover:bg-accent-hover w-full cursor-pointer rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+              class="bg-accent hover:bg-accent-hover w-full rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               disabled={loadBtnDisabled()}
               onClick={handleView}
             >
@@ -167,7 +166,7 @@ export default function View() {
             <div class="relative">
               <div class="absolute top-2 right-2 z-10 flex gap-1">
                 <button
-                  class="bg-surface text-muted hover:text-text border-border cursor-pointer rounded-md border p-1.5 transition-colors"
+                  class="bg-surface text-muted hover:text-text border-border rounded-md border p-1.5 transition-colors"
                   title="Copy"
                   onClick={copyText}
                 >
@@ -187,7 +186,7 @@ export default function View() {
                   </svg>
                 </button>
                 <button
-                  class="bg-surface text-muted hover:text-text border-border cursor-pointer rounded-md border p-1.5 transition-colors"
+                  class="bg-surface text-muted hover:text-text border-border rounded-md border p-1.5 transition-colors"
                   title="Raw"
                   onClick={viewRaw}
                 >
@@ -224,7 +223,7 @@ export default function View() {
             </div>
             <div class="mt-3">
               <button
-                class="bg-surface text-text border-border hover:bg-surface w-full cursor-pointer rounded-md border py-2 text-sm font-medium transition-colors"
+                class="bg-surface text-text border-border hover:bg-surface w-full rounded-md border py-2 text-sm font-medium transition-colors"
                 onClick={saveFile}
               >
                 Save
@@ -236,7 +235,7 @@ export default function View() {
             <div class="bg-surface border-border rounded-lg border p-4 text-center">
               <p class="mb-3 font-mono text-sm">{fileName()}</p>
               <button
-                class="bg-accent hover:bg-accent-hover w-full cursor-pointer rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors"
+                class="bg-accent hover:bg-accent-hover w-full rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors"
                 onClick={saveFile}
               >
                 Download

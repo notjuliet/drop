@@ -64,7 +64,10 @@ export async function encrypt(
 }
 
 // Decrypt and unpack — returns { fileName, fileData }
-export async function decrypt(ciphertext: Uint8Array, key: CryptoKey) {
+export async function decrypt(
+  ciphertext: Uint8Array<ArrayBuffer>,
+  key: CryptoKey,
+) {
   const plain = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: IV },
     key,

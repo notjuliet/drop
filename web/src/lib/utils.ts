@@ -61,10 +61,10 @@ export function getExt(name: string): string {
 }
 
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (n < 1000) return `${n} B`;
+  if (n < 1e6) return `${parseFloat((n / 1e3).toFixed(1))} KB`;
+  if (n < 1e9) return `${parseFloat((n / 1e6).toFixed(1))} MB`;
+  return `${parseFloat((n / 1e9).toFixed(2))} GB`;
 }
 
 export function formatExpiry(unixSec: number): string {
