@@ -3,8 +3,11 @@ import { createSignal, Show, onMount, onCleanup, createMemo } from "solid-js";
 import { generateKey, encrypt } from "../lib/crypto";
 import { formatBytes } from "../lib/utils";
 
+const viewClass = "flex flex-col items-center gap-2 sm:gap-3";
+const fadeIn = { animation: "fade-in 0.4s" };
+
 const btnClass =
-  "bg-transparent hover:bg-accent/10 border-accent text-accent rounded-md border px-4 py-1.5 font-medium transition-colors";
+  "bg-transparent hover:bg-accent/10 active:scale-95 border-accent text-accent rounded-md border px-4 py-1.5 font-medium transition";
 const btnStyle = { "font-size": "clamp(1rem, 3vw, 1.5rem)" };
 const ghostClass =
   "text-muted hover:text-text border-none bg-transparent p-0 text-xs";
@@ -247,6 +250,7 @@ export default function Upload() {
             </clipPath>
           </defs>
           <style>{`@keyframes wave { from { transform: translateX(0) } to { transform: translateX(-${WAVE_LEN}px) } }`}</style>
+          <style>{`@keyframes fade-in { 0% { opacity: 0; transform: translateY(4px) } 100% { opacity: 1; transform: translateY(0) } }`}</style>
           <circle
             cx={CENTER}
             cy={CENTER}
@@ -290,116 +294,124 @@ export default function Upload() {
           </g>
         </svg>
 
-        <div class="z-10 flex flex-col items-center gap-2 text-center sm:gap-3">
+        <div class="z-10 flex flex-col items-center text-center">
           <Show when={view() === "result"}>
-            <span
-              class="text-muted"
-              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-            >
-              expires in {expiryValue()}
-            </span>
-            <button class={btnClass} style={btnStyle} onClick={copyLink}>
-              {copied() ? "copied!" : "copy link"}
-            </button>
-            <button
-              class={ghostClass}
-              onClick={(e) => {
-                e.stopPropagation();
-                setResultUrl("");
-                removeFile();
-              }}
-            >
-              new drop
-            </button>
+            <div class={viewClass} style={fadeIn}>
+              <span
+                class="text-muted"
+                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+              >
+                expires in {expiryValue()}
+              </span>
+              <button class={btnClass} style={btnStyle} onClick={copyLink}>
+                {copied() ? "copied!" : "copy link"}
+              </button>
+              <button
+                class={ghostClass}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setResultUrl("");
+                  removeFile();
+                }}
+              >
+                new drop
+              </button>
+            </div>
           </Show>
 
           <Show when={view() === "uploading"}>
-            <span
-              class="text-accent font-medium tabular-nums"
-              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
-            >
-              {progress()}%
-            </span>
-            <span class="text-muted text-xs">
-              {status() === "encrypting"
-                ? "encrypting\u2026"
-                : "uploading\u2026"}
-            </span>
-            <button
-              class={ghostClass}
-              onClick={(e) => {
-                e.stopPropagation();
-                cancelUpload();
-              }}
-            >
-              cancel
-            </button>
+            <div class={viewClass} style={fadeIn}>
+              <span
+                class="text-accent font-medium tabular-nums"
+                style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+              >
+                {progress()}%
+              </span>
+              <span class="text-muted text-xs">
+                {status() === "encrypting"
+                  ? "encrypting\u2026"
+                  : "uploading\u2026"}
+              </span>
+              <button
+                class={ghostClass}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  cancelUpload();
+                }}
+              >
+                cancel
+              </button>
+            </div>
           </Show>
 
           <Show when={view() === "file"}>
-            <span
-              class="text-text flex gap-1.5 truncate"
-              style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
-            >
+            <div class={viewClass} style={fadeIn}>
               <span
-                class="truncate"
-                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                class="text-text flex gap-1.5 truncate"
+                style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
               >
-                {file()!.name}
+                <span
+                  class="truncate"
+                  style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                >
+                  {file()!.name}
+                </span>
+                <span
+                  class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                  style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                >
+                  {tooLarge()
+                    ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
+                    : formatBytes(file()!.size)}
+                </span>
               </span>
-              <span
-                class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
-                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+              <button
+                class={`${btnClass} disabled:cursor-not-allowed disabled:opacity-40`}
+                style={btnStyle}
+                disabled={tooLarge()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleUpload();
+                }}
               >
-                {tooLarge()
-                  ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
-                  : formatBytes(file()!.size)}
-              </span>
-            </span>
-            <button
-              class={`${btnClass} disabled:cursor-not-allowed disabled:opacity-40`}
-              style={btnStyle}
-              disabled={tooLarge()}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleUpload();
-              }}
-            >
-              upload
-            </button>
-            <button
-              class={ghostClass}
-              onClick={(e) => {
-                e.stopPropagation();
-                removeFile();
-              }}
-            >
-              remove
-            </button>
+                upload
+              </button>
+              <button
+                class={ghostClass}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFile();
+                }}
+              >
+                remove
+              </button>
+            </div>
           </Show>
 
           <Show when={view() === "empty"}>
-            <span
-              class="text-muted font-medium"
-              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-            >
-              drop a file, or
-            </span>
-            <button
-              class={btnClass}
-              style={btnStyle}
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInput.click();
-              }}
-            >
-              browse
-            </button>
-            <Show when={maxFileSize()}>
-              <span class="text-muted text-xs">
-                up to {formatBytes(maxFileSize())}
+            <div class={viewClass} style={fadeIn}>
+              <span
+                class="text-muted font-medium"
+                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+              >
+                drop a file, or
               </span>
-            </Show>
+              <button
+                class={btnClass}
+                style={btnStyle}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInput.click();
+                }}
+              >
+                browse
+              </button>
+              <Show when={maxFileSize()}>
+                <span class="text-muted text-xs">
+                  up to {formatBytes(maxFileSize())}
+                </span>
+              </Show>
+            </div>
           </Show>
         </div>
 
