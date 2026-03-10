@@ -233,7 +233,7 @@ export default function View() {
 
           <Match when={contentType() === "binary"}>
             <div class="bg-surface border-border rounded-lg border p-4 text-center">
-              <p class="mb-3 font-mono text-sm">{fileName()}</p>
+              <p class="mb-3 text-sm">{fileName()}</p>
               <button
                 class="bg-accent hover:bg-accent-hover w-full rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors"
                 onClick={saveFile}

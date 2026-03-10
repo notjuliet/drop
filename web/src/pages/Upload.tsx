@@ -14,9 +14,10 @@ export default function Upload() {
   const [burn, setBurn] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
   const [maxFileSize, setMaxFileSize] = createSignal(0);
+  const [maxTtl, setMaxTtl] = createSignal("");
+  const [expiryValue, setExpiryValue] = createSignal("");
 
   let fileInput!: HTMLInputElement;
-  let expiryInput!: HTMLInputElement;
   let activeXhr: XMLHttpRequest | null = null;
 
   const RADIUS = 130;
@@ -64,6 +65,24 @@ export default function Upload() {
     return !!f && !!max && f.size > max;
   });
 
+  const parseDuration = (s: string): number | undefined => {
+    const units: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+    const n = parseInt(s);
+    const mult = units[s.trim().slice(-1)];
+    if (isNaN(n) || mult === undefined) return undefined;
+    return n * mult;
+  };
+
+  const expiryTooLong = createMemo(() => {
+    const val = expiryValue();
+    const max = maxTtl();
+    if (!val || !max) return false;
+    const valSec = parseDuration(val);
+    const maxSec = parseDuration(max);
+    if (valSec === undefined || maxSec === undefined) return false;
+    return valSec > maxSec;
+  });
+
   const statusText = () => {
     if (encrypting()) return "encrypting\u2026";
     if (uploading()) return "uploading\u2026";
@@ -100,6 +119,10 @@ export default function Upload() {
       if (res.ok) {
         const info = await res.json();
         setMaxFileSize(info.maxFileSize);
+        if (info.maxTtl) {
+          setMaxTtl(info.maxTtl);
+          setExpiryValue(info.maxTtl);
+        }
       }
     } catch {}
   });
@@ -144,7 +167,7 @@ export default function Upload() {
 
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));
-      formData.append("expiresIn", expiryInput.value.trim());
+      formData.append("expiresIn", expiryValue().trim());
       formData.append("burnAfterRead", burn() ? "true" : "false");
 
       setEncrypting(false);
@@ -200,7 +223,7 @@ export default function Upload() {
   return (
     <>
       <div
-        class="group relative mx-auto flex aspect-square w-[80vw] max-w-[500px] items-center justify-center"
+        class="group relative mx-auto flex aspect-square w-[80vw] max-w-125 items-center justify-center"
         onClick={() => !resultUrl() && fileInput.click()}
       >
         <svg
@@ -392,11 +415,11 @@ export default function Upload() {
           <label class="text-muted flex items-center gap-3 select-none">
             lifetime
             <input
-              ref={expiryInput!}
               type="text"
-              value="24h"
+              value={expiryValue()}
               placeholder="30m, 24h, 7d"
-              class="bg-surface border-border text-accent focus:border-accent w-28 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none"
+              onInput={(e) => setExpiryValue(e.currentTarget.value)}
+              class={`bg-surface text-accent w-28 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none ${expiryTooLong() ? "border-danger" : "border-border focus:border-accent"}`}
             />
           </label>
           <label
