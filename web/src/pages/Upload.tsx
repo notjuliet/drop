@@ -4,7 +4,7 @@ import { generateKey, encrypt } from "../lib/crypto";
 import { formatBytes } from "../lib/utils";
 
 const btnClass =
-  "bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors";
+  "bg-transparent hover:bg-accent/10 border-accent text-accent rounded-md border px-4 py-1.5 font-medium transition-colors";
 const btnStyle = { "font-size": "clamp(1rem, 3vw, 1.5rem)" };
 const ghostClass =
   "text-muted hover:text-text border-none bg-transparent p-0 text-xs";
