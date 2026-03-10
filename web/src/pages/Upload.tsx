@@ -12,12 +12,11 @@ export default function Upload() {
   const [resultUrl, setResultUrl] = createSignal("");
   const [dragging, setDragging] = createSignal(false);
   const [burn, setBurn] = createSignal(false);
+  const [copied, setCopied] = createSignal(false);
   const [maxFileSize, setMaxFileSize] = createSignal(0);
 
   let fileInput!: HTMLInputElement;
-  let linkInput!: HTMLInputElement;
   let expiryInput!: HTMLInputElement;
-  let copyBtn!: HTMLButtonElement;
   let activeXhr: XMLHttpRequest | null = null;
 
   const RADIUS = 130;
@@ -191,17 +190,18 @@ export default function Upload() {
     }
   };
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(linkInput.value);
-    copyBtn.textContent = "Copied!";
-    setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+  const copyLink = (e: MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(resultUrl());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (
     <>
       <div
         class="group relative mx-auto flex aspect-square w-[80vw] max-w-[500px] items-center justify-center"
-        onClick={() => fileInput.click()}
+        onClick={() => !resultUrl() && fileInput.click()}
       >
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -256,88 +256,122 @@ export default function Upload() {
         </svg>
 
         <div class="z-10 flex flex-col items-center gap-2 text-center sm:gap-3">
-          <Show when={uploading()}>
+          <Show when={resultUrl()}>
             <span
-              class="text-accent font-medium tabular-nums"
-              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+              class="text-accent truncate px-4 font-mono"
+              style={{
+                "font-size": "clamp(0.55rem, 1.5vw, 0.75rem)",
+                "max-width": "clamp(120px, 50vw, 260px)",
+              }}
             >
-              {progress()}%
+              {resultUrl()}
             </span>
-            <span class="text-muted text-xs">{statusText()}</span>
+            <button
+              class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
+              style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.125rem)" }}
+              onClick={copyLink}
+            >
+              {copied() ? "copied!" : "copy link"}
+            </button>
             <button
               class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
               onClick={(e) => {
                 e.stopPropagation();
-                cancelUpload();
+                setResultUrl("");
+                removeFile();
               }}
             >
-              cancel
+              new drop
             </button>
           </Show>
-          <Show when={!uploading()}>
-            <Show
-              when={!file()}
-              fallback={
-                <>
-                  <span
-                    class="text-text truncate"
-                    style={{
-                      "max-width": "clamp(120px, 40vw, 300px)",
-                      "font-size": "clamp(0.75rem, 2vw, 1rem)",
-                    }}
-                  >
-                    {file()!.name}
-                  </span>
-                  <span
-                    class={`font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
-                    style={{ "font-size": "clamp(0.625rem, 1.5vw, 0.875rem)" }}
-                  >
-                    {formatBytes(file()!.size)}
-                    {tooLarge() ? ` / ${formatBytes(maxFileSize())} limit` : ""}
-                  </span>
-                  <button
-                    class="bg-accent hover:bg-accent-hover mt-2 rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                    style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
-                    disabled={tooLarge()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpload();
-                    }}
-                  >
-                    upload
-                  </button>
-                  <button
-                    class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile();
-                    }}
-                  >
-                    remove
-                  </button>
-                </>
-              }
-            >
-              <p
-                class="text-muted font-medium"
-                style={{ "font-size": "clamp(0.625rem, 2vw, 0.875rem)" }}
+          <Show when={!resultUrl()}>
+            <Show when={uploading()}>
+              <span
+                class="text-accent font-medium tabular-nums"
+                style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
               >
-                drop a file, or
-              </p>
+                {progress()}%
+              </span>
+              <span class="text-muted text-xs">{statusText()}</span>
               <button
-                class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
-                style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
+                class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
                 onClick={(e) => {
                   e.stopPropagation();
-                  fileInput.click();
+                  cancelUpload();
                 }}
               >
-                browse
+                cancel
               </button>
-              <Show when={maxFileSize()}>
-                <span class="text-muted text-[10px]">
-                  up to {formatBytes(maxFileSize())}
-                </span>
+            </Show>
+            <Show when={!uploading()}>
+              <Show
+                when={!file()}
+                fallback={
+                  <>
+                    <span
+                      class="text-text truncate"
+                      style={{
+                        "max-width": "clamp(120px, 40vw, 300px)",
+                        "font-size": "clamp(0.75rem, 2vw, 1rem)",
+                      }}
+                    >
+                      {file()!.name}
+                    </span>
+                    <span
+                      class={`font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                      style={{
+                        "font-size": "clamp(0.625rem, 1.5vw, 0.875rem)",
+                      }}
+                    >
+                      {formatBytes(file()!.size)}
+                      {tooLarge()
+                        ? ` / ${formatBytes(maxFileSize())} limit`
+                        : ""}
+                    </span>
+                    <button
+                      class="bg-accent hover:bg-accent-hover mt-2 rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                      style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
+                      disabled={tooLarge()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpload();
+                      }}
+                    >
+                      upload
+                    </button>
+                    <button
+                      class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile();
+                      }}
+                    >
+                      remove
+                    </button>
+                  </>
+                }
+              >
+                <p
+                  class="text-muted font-medium"
+                  style={{ "font-size": "clamp(0.625rem, 2vw, 0.875rem)" }}
+                >
+                  drop a file, or
+                </p>
+                <button
+                  class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
+                  style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInput.click();
+                  }}
+                >
+                  browse
+                </button>
+                <Show when={maxFileSize()}>
+                  <span class="text-muted text-[10px]">
+                    up to {formatBytes(maxFileSize())}
+                  </span>
+                </Show>
               </Show>
             </Show>
           </Show>
@@ -353,64 +387,48 @@ export default function Upload() {
         />
       </div>
 
-      <div class="mx-auto mt-6 flex w-fit flex-col gap-4 text-sm">
-        <label class="text-muted flex items-center gap-3 select-none">
-          lifetime
-          <input
-            ref={expiryInput!}
-            type="text"
-            value="24h"
-            placeholder="e.g. 30m, 24h, 7d"
-            class="bg-surface border-border text-accent focus:border-accent w-24 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none"
-          />
-        </label>
-        <label
-          class="text-muted flex items-center gap-3 select-none"
-          onClick={() => setBurn((b) => !b)}
-        >
-          burn after read
-          <div
-            class={`flex size-5 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
+      <Show when={!resultUrl()}>
+        <div class="mx-auto mt-6 flex w-fit flex-col gap-4 text-sm">
+          <label class="text-muted flex items-center gap-3 select-none">
+            lifetime
+            <input
+              ref={expiryInput!}
+              type="text"
+              value="24h"
+              placeholder="30m, 24h, 7d"
+              class="bg-surface border-border text-accent focus:border-accent w-28 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none"
+            />
+          </label>
+          <label
+            class="text-muted flex items-center gap-3 select-none"
+            onClick={() => setBurn((b) => !b)}
           >
-            <Show when={burn()}>
-              <svg class="text-bg h-3.5 w-3.5" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M2 6l3 3 5-5"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </Show>
-          </div>
-        </label>
-      </div>
+            burn after read
+            <div
+              class={`flex size-5 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
+            >
+              <Show when={burn()}>
+                <svg
+                  class="text-bg h-3.5 w-3.5"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                >
+                  <path
+                    d="M2 6l3 3 5-5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </Show>
+            </div>
+          </label>
+        </div>
+      </Show>
 
       <Show when={error()}>
         <div class="text-danger mt-4 text-xs">{error()}</div>
-      </Show>
-
-      <Show when={resultUrl()}>
-        <div class="bg-surface border-border mt-6 rounded-lg border p-4">
-          <label class="text-muted mb-1.5 block text-xs">drop link</label>
-          <div class="flex gap-2">
-            <input
-              ref={linkInput!}
-              type="text"
-              readonly
-              value={resultUrl()}
-              class="bg-bg border-border text-text min-w-0 flex-1 rounded-md border px-2.5 py-1.5 font-mono text-xs outline-none"
-            />
-            <button
-              ref={copyBtn!}
-              class="bg-accent hover:bg-accent-hover shrink-0 rounded-md border-none px-3 py-1.5 text-xs font-medium text-white transition-colors"
-              onClick={copyLink}
-            >
-              Copy
-            </button>
-          </div>
-        </div>
       </Show>
     </>
   );
