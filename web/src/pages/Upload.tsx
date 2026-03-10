@@ -10,7 +10,7 @@ const btnClass =
   "bg-transparent hover:bg-accent/10 active:scale-95 border-accent text-accent rounded-md border px-4 py-1.5 font-medium transition";
 const btnStyle = { "font-size": "clamp(1rem, 3vw, 1.5rem)" };
 const ghostClass =
-  "text-muted hover:text-text border-none bg-transparent p-0 text-xs";
+  "text-muted hover:text-text border-none bg-transparent p-0 text-[10px] sm:text-xs";
 
 const DURATION_UNITS: Record<string, number> = {
   s: 1,
@@ -333,7 +333,7 @@ export default function Upload() {
                 >
                   {progress()}%
                 </span>
-                <span class="text-muted text-xs">
+                <span class="text-muted text-[10px] sm:text-xs">
                   {status() === "encrypting"
                     ? "encrypting\u2026"
                     : "uploading\u2026"}
@@ -413,7 +413,7 @@ export default function Upload() {
                   browse
                 </button>
                 <Show when={maxFileSize()}>
-                  <span class="text-muted text-xs">
+                  <span class="text-muted text-[10px] sm:text-xs">
                     up to {formatBytes(maxFileSize())}
                   </span>
                 </Show>
