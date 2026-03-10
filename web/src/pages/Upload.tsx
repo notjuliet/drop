@@ -258,9 +258,9 @@ export default function Upload() {
         <div class="z-10 flex flex-col items-center gap-2 text-center sm:gap-3">
           <Show when={resultUrl()}>
             <span
-              class="text-accent truncate px-4 font-mono"
+              class="text-muted truncate px-4"
               style={{
-                "font-size": "clamp(0.55rem, 1.5vw, 0.75rem)",
+                "font-size": "clamp(0.625rem, 2vw, 0.875rem)",
                 "max-width": "clamp(120px, 50vw, 260px)",
               }}
             >
