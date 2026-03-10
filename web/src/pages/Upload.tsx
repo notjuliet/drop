@@ -3,10 +3,31 @@ import { createSignal, Show, onMount, onCleanup, createMemo } from "solid-js";
 import { generateKey, encrypt } from "../lib/crypto";
 import { formatBytes } from "../lib/utils";
 
+const btnClass =
+  "bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors";
+const btnStyle = { "font-size": "clamp(1rem, 3vw, 1.5rem)" };
+const ghostClass =
+  "text-muted hover:text-text border-none bg-transparent p-0 text-xs";
+
+const DURATION_UNITS: Record<string, number> = {
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400,
+};
+function parseDuration(s: string): number | undefined {
+  const n = parseInt(s);
+  const mult = DURATION_UNITS[s.trim().slice(-1)];
+  if (isNaN(n) || mult === undefined) return undefined;
+  return n * mult;
+}
+
+type Status = "idle" | "encrypting" | "uploading";
+type View = "result" | "uploading" | "file" | "empty";
+
 export default function Upload() {
   const [file, setFile] = createSignal<File | null>(null);
-  const [uploading, setUploading] = createSignal(false);
-  const [encrypting, setEncrypting] = createSignal(false);
+  const [status, setStatus] = createSignal<Status>("idle");
   const [progress, setProgress] = createSignal(0);
   const [error, setError] = createSignal("");
   const [resultUrl, setResultUrl] = createSignal("");
@@ -65,14 +86,6 @@ export default function Upload() {
     return !!f && !!max && f.size > max;
   });
 
-  const parseDuration = (s: string): number | undefined => {
-    const units: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-    const n = parseInt(s);
-    const mult = units[s.trim().slice(-1)];
-    if (isNaN(n) || mult === undefined) return undefined;
-    return n * mult;
-  };
-
   const expiryTooLong = createMemo(() => {
     const val = expiryValue();
     const max = maxTtl();
@@ -83,11 +96,12 @@ export default function Upload() {
     return valSec > maxSec;
   });
 
-  const statusText = () => {
-    if (encrypting()) return "encrypting\u2026";
-    if (uploading()) return "uploading\u2026";
-    return "";
-  };
+  const view = createMemo<View>(() => {
+    if (resultUrl()) return "result";
+    if (status() !== "idle") return "uploading";
+    if (file()) return "file";
+    return "empty";
+  });
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
@@ -133,29 +147,27 @@ export default function Upload() {
     document.removeEventListener("drop", handleDrop);
   });
 
-  const cancelUpload = () => {
-    if (activeXhr) {
-      activeXhr.abort();
-      activeXhr = null;
-    }
-    setUploading(false);
-    setEncrypting(false);
-    setProgress(0);
-    removeFile();
-  };
-
   const removeFile = () => {
     setFile(null);
     setError("");
     fileInput.value = "";
   };
 
+  const cancelUpload = () => {
+    if (activeXhr) {
+      activeXhr.abort();
+      activeXhr = null;
+    }
+    setStatus("idle");
+    setProgress(0);
+    removeFile();
+  };
+
   const handleUpload = async () => {
     const f = file();
     if (!f) return;
 
-    setEncrypting(true);
-    setUploading(true);
+    setStatus("encrypting");
     setError("");
     setResultUrl("");
     setProgress(0);
@@ -170,7 +182,7 @@ export default function Upload() {
       formData.append("expiresIn", expiryValue().trim());
       formData.append("burnAfterRead", burn() ? "true" : "false");
 
-      setEncrypting(false);
+      setStatus("uploading");
 
       const res = await new Promise<{ id: string }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -207,8 +219,7 @@ export default function Upload() {
       setError(e.message);
     } finally {
       activeXhr = null;
-      setUploading(false);
-      setEncrypting(false);
+      setStatus("idle");
       setProgress(0);
     }
   };
@@ -224,7 +235,7 @@ export default function Upload() {
     <>
       <div
         class="group relative mx-auto flex aspect-square w-[80vw] max-w-125 items-center justify-center"
-        onClick={() => !resultUrl() && fileInput.click()}
+        onClick={() => view() === "empty" && fileInput.click()}
       >
         <svg
           viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -255,7 +266,7 @@ export default function Upload() {
             stroke={tooLarge() ? "var(--color-danger)" : "var(--color-accent)"}
             stroke-width="7"
             stroke-dasharray={`${CIRCUMFERENCE}`}
-            stroke-dashoffset={`${CIRCUMFERENCE * (1 - (uploading() || dragging() ? 0 : sizeRatio()))}`}
+            stroke-dashoffset={`${CIRCUMFERENCE * (1 - (status() !== "idle" || dragging() ? 0 : sizeRatio()))}`}
             stroke-linecap="round"
             transform={`rotate(-90 ${CENTER} ${CENTER})`}
             style={{
@@ -272,32 +283,26 @@ export default function Upload() {
               opacity="0.15"
               style={{
                 transition: "d 300ms ease-out",
-                animation: uploading() ? `wave 2s linear infinite` : "none",
+                animation:
+                  status() === "uploading" ? `wave 2s linear infinite` : "none",
               }}
             />
           </g>
         </svg>
 
         <div class="z-10 flex flex-col items-center gap-2 text-center sm:gap-3">
-          <Show when={resultUrl()}>
+          <Show when={view() === "result"}>
             <span
-              class="text-muted truncate px-4"
-              style={{
-                "font-size": "clamp(0.625rem, 2vw, 0.875rem)",
-                "max-width": "clamp(120px, 50vw, 260px)",
-              }}
+              class="text-muted"
+              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
             >
-              {resultUrl()}
+              expires in {expiryValue()}
             </span>
-            <button
-              class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
-              style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.125rem)" }}
-              onClick={copyLink}
-            >
+            <button class={btnClass} style={btnStyle} onClick={copyLink}>
               {copied() ? "copied!" : "copy link"}
             </button>
             <button
-              class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
+              class={ghostClass}
               onClick={(e) => {
                 e.stopPropagation();
                 setResultUrl("");
@@ -307,95 +312,93 @@ export default function Upload() {
               new drop
             </button>
           </Show>
-          <Show when={!resultUrl()}>
-            <Show when={uploading()}>
+
+          <Show when={view() === "uploading"}>
+            <span
+              class="text-accent font-medium tabular-nums"
+              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+            >
+              {progress()}%
+            </span>
+            <span class="text-muted text-xs">
+              {status() === "encrypting"
+                ? "encrypting\u2026"
+                : "uploading\u2026"}
+            </span>
+            <button
+              class={ghostClass}
+              onClick={(e) => {
+                e.stopPropagation();
+                cancelUpload();
+              }}
+            >
+              cancel
+            </button>
+          </Show>
+
+          <Show when={view() === "file"}>
+            <span
+              class="text-text flex gap-1.5 truncate"
+              style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
+            >
               <span
-                class="text-accent font-medium tabular-nums"
-                style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+                class="truncate"
+                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
               >
-                {progress()}%
+                {file()!.name}
               </span>
-              <span class="text-muted text-xs">{statusText()}</span>
-              <button
-                class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  cancelUpload();
-                }}
+              <span
+                class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
               >
-                cancel
-              </button>
-            </Show>
-            <Show when={!uploading()}>
-              <Show
-                when={!file()}
-                fallback={
-                  <>
-                    <span
-                      class="text-text truncate"
-                      style={{
-                        "max-width": "clamp(120px, 40vw, 300px)",
-                        "font-size": "clamp(0.75rem, 2vw, 1rem)",
-                      }}
-                    >
-                      {file()!.name}
-                    </span>
-                    <span
-                      class={`font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
-                      style={{
-                        "font-size": "clamp(0.625rem, 1.5vw, 0.875rem)",
-                      }}
-                    >
-                      {formatBytes(file()!.size)}
-                      {tooLarge()
-                        ? ` / ${formatBytes(maxFileSize())} limit`
-                        : ""}
-                    </span>
-                    <button
-                      class="bg-accent hover:bg-accent-hover mt-2 rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-                      style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
-                      disabled={tooLarge()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUpload();
-                      }}
-                    >
-                      upload
-                    </button>
-                    <button
-                      class="text-muted hover:text-text mt-1 border-none bg-transparent p-0 text-[10px]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFile();
-                      }}
-                    >
-                      remove
-                    </button>
-                  </>
-                }
-              >
-                <p
-                  class="text-muted font-medium"
-                  style={{ "font-size": "clamp(0.625rem, 2vw, 0.875rem)" }}
-                >
-                  drop a file, or
-                </p>
-                <button
-                  class="bg-accent hover:bg-accent-hover rounded-md border-none px-4 py-1.5 font-medium text-white transition-colors"
-                  style={{ "font-size": "clamp(0.875rem, 2.5vw, 1.25rem)" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fileInput.click();
-                  }}
-                >
-                  browse
-                </button>
-                <Show when={maxFileSize()}>
-                  <span class="text-muted text-[10px]">
-                    up to {formatBytes(maxFileSize())}
-                  </span>
-                </Show>
-              </Show>
+                {tooLarge()
+                  ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
+                  : formatBytes(file()!.size)}
+              </span>
+            </span>
+            <button
+              class={`${btnClass} disabled:cursor-not-allowed disabled:opacity-40`}
+              style={btnStyle}
+              disabled={tooLarge()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUpload();
+              }}
+            >
+              upload
+            </button>
+            <button
+              class={ghostClass}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeFile();
+              }}
+            >
+              remove
+            </button>
+          </Show>
+
+          <Show when={view() === "empty"}>
+            <span
+              class="text-muted font-medium"
+              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+            >
+              drop a file, or
+            </span>
+            <button
+              class={btnClass}
+              style={btnStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInput.click();
+              }}
+            >
+              browse
+            </button>
+            <Show when={maxFileSize()}>
+              <span class="text-muted text-xs">
+                up to {formatBytes(maxFileSize())}
+              </span>
             </Show>
           </Show>
         </div>
@@ -410,7 +413,7 @@ export default function Upload() {
         />
       </div>
 
-      <Show when={!resultUrl()}>
+      <Show when={view() !== "result"}>
         <div class="mx-auto mt-6 flex w-fit flex-col gap-4 text-sm">
           <label class="text-muted flex items-center gap-3 select-none">
             lifetime
