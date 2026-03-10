@@ -248,7 +248,7 @@ export default function Upload() {
         >
           <defs>
             <clipPath id="circle-clip">
-              <circle cx={CENTER} cy={CENTER} r={RADIUS - 3.5} />
+              <circle cx={CENTER} cy={CENTER} r={RADIUS} />
             </clipPath>
           </defs>
           <style>{`@keyframes wave { from { transform: translateX(0) } to { transform: translateX(-${WAVE_LEN}px) } }`}</style>
@@ -285,8 +285,7 @@ export default function Upload() {
           <g clip-path="url(#circle-clip)">
             <path
               d={wavePath()}
-              fill="var(--color-accent)"
-              opacity="0.15"
+              fill="var(--color-border)"
               style={{
                 transition: "d 300ms ease-out",
                 animation:
