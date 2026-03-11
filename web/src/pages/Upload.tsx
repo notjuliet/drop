@@ -7,7 +7,7 @@ import {
   createEffect,
 } from "solid-js";
 
-import { generateKey, encrypt } from "../lib/crypto";
+import { generateKey } from "../lib/crypto";
 import { formatBytes } from "../lib/utils";
 
 const viewClass = "flex flex-col items-center gap-2 sm:gap-3";
@@ -51,6 +51,7 @@ export default function Upload() {
 
   let fileInput!: HTMLInputElement;
   let activeXhr: XMLHttpRequest | null = null;
+  let worker: Worker | null = null;
 
   const RADIUS = 130;
   const CENTER = RADIUS + 10;
@@ -135,6 +136,9 @@ export default function Upload() {
   };
 
   onMount(async () => {
+    worker = new Worker(new URL("../lib/crypto.worker.ts", import.meta.url), {
+      type: "module",
+    });
     document.addEventListener("dragover", handleDragOver);
     document.addEventListener("dragleave", handleDragLeave);
     document.addEventListener("drop", handleDrop);
@@ -157,6 +161,7 @@ export default function Upload() {
     document.removeEventListener("dragover", handleDragOver);
     document.removeEventListener("dragleave", handleDragLeave);
     document.removeEventListener("drop", handleDrop);
+    worker?.terminate();
   });
 
   const removeFile = () => {
@@ -185,9 +190,25 @@ export default function Upload() {
     setProgress(0);
 
     try {
-      const { key, encoded } = await generateKey();
+      const { encoded } = await generateKey();
       const buffer = await f.arrayBuffer();
-      const ciphertext = await encrypt(f.name || "file", buffer, key);
+      const ciphertext = await new Promise<Uint8Array<ArrayBuffer>>(
+        (resolve, reject) => {
+          worker!.onmessage = (e) => {
+            if (e.data.error) reject(new Error(e.data.error));
+            else resolve(e.data.ciphertext);
+          };
+          worker!.postMessage(
+            {
+              type: "encrypt",
+              fileName: f.name || "file",
+              fileBuffer: buffer,
+              keyEncoded: encoded,
+            },
+            [buffer],
+          );
+        },
+      );
 
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));

@@ -1,7 +1,14 @@
 import { useParams } from "@solidjs/router";
-import { createSignal, Show, Switch, Match, onMount } from "solid-js";
+import {
+  createSignal,
+  Show,
+  Switch,
+  Match,
+  onMount,
+  onCleanup,
+} from "solid-js";
 
-import { importKey, decrypt } from "../lib/crypto";
+import { importKey } from "../lib/crypto";
 import {
   formatBytes,
   formatExpiry,
@@ -34,7 +41,13 @@ export default function View() {
   const [fileName, setFileName] = createSignal("");
 
   let decryptedBlob: Blob | null = null;
-  let cryptoKey: CryptoKey;
+  const worker = new Worker(
+    new URL("../lib/crypto.worker.ts", import.meta.url),
+    {
+      type: "module",
+    },
+  );
+  onCleanup(() => worker.terminate());
 
   onMount(async () => {
     const id = params.id;
@@ -47,7 +60,7 @@ export default function View() {
     }
 
     try {
-      cryptoKey = await importKey(keyEncoded);
+      await importKey(keyEncoded);
     } catch {
       setError("Invalid key.");
       setStage("error");
@@ -81,10 +94,23 @@ export default function View() {
       }
 
       const buf = await res.arrayBuffer();
-      const { fileName: name, fileData } = await decrypt(
-        new Uint8Array(buf),
-        cryptoKey,
-      );
+      const { fileName: name, fileData } = await new Promise<{
+        fileName: string;
+        fileData: Uint8Array<ArrayBuffer>;
+      }>((resolve, reject) => {
+        worker.onmessage = (e) => {
+          if (e.data.error) reject(new Error(e.data.error));
+          else resolve(e.data);
+        };
+        worker.postMessage(
+          {
+            type: "decrypt",
+            ciphertext: buf,
+            keyEncoded: location.hash.slice(1),
+          },
+          [buf],
+        );
+      });
       const ext = getExt(name);
       setFileName(name);
 
