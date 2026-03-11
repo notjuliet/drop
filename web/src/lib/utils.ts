@@ -88,9 +88,9 @@ export function formatBytes(n: number): string {
 export function formatExpiry(unixSec: number): string {
   const secs = unixSec - Math.floor(Date.now() / 1000);
   if (secs < 60) return "expires in less than a minute";
-  if (secs < 3600) return `expires in ${Math.floor(secs / 60)}m`;
-  if (secs < 86400) return `expires in ${Math.floor(secs / 3600)}h`;
-  return `expires in ${Math.floor(secs / 86400)}d`;
+  if (secs < 3600) return `expires in ${Math.floor(secs / 60)} minutes`;
+  if (secs < 86400) return `expires in ${Math.floor(secs / 3600)} hours`;
+  return `expires in ${Math.floor(secs / 86400)} days`;
 }
 
 export function triggerDownload(blob: Blob, fileName: string) {
