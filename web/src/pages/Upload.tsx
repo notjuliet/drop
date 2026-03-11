@@ -475,7 +475,7 @@ export default function Upload() {
       </Show>
 
       <Show when={error()}>
-        <div class="text-danger mt-4 text-xs">{error()}</div>
+        <div class="text-danger mt-4 text-center text-xs">{error()}</div>
       </Show>
     </>
   );

@@ -41,7 +41,7 @@ file.post("/", async (c) => {
   const expiresInSec = expiresInStr ? parseDuration(expiresInStr) : undefined;
   if (!expiresInSec) {
     return c.json(
-      { error: "Invalid expiresIn. Use a duration like 30m, 24h, 7d" },
+      { error: "Invalid lifetime. Use a duration like 30m, 24h, 7d" },
       400,
     );
   }
