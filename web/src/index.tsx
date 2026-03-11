@@ -6,10 +6,13 @@ import View from "./pages/View";
 
 import "./styles.css";
 
-const Page = () =>
-  location.pathname === "/" ? <Upload /> : <View />;
+const Page = () => (location.pathname === "/" ? <Upload /> : <View />);
 
 render(
-  () => <App><Page /></App>,
+  () => (
+    <App>
+      <Page />
+    </App>
+  ),
   document.getElementById("root")!,
 );

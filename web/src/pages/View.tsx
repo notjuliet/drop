@@ -52,7 +52,6 @@ export default function View() {
   onCleanup(() => worker.terminate());
 
   onMount(async () => {
-
     const keyEncoded = window.location.hash.slice(1);
 
     if (!id || !keyEncoded) {
