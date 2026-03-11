@@ -1,6 +1,6 @@
 # drop
 
-A minimal, end-to-end encrypted file sharing app.
+A minimal file sharing app with zero-knowledge storage.
 
 ## Features
 
