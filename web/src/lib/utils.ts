@@ -7,7 +7,6 @@ export const IMAGE_EXTS = new Set([
   "svg",
   "ico",
   "bmp",
-  "tiff",
   "avif",
 ]);
 
@@ -42,6 +41,26 @@ export const TEXT_EXTS = new Set([
   "env",
 ]);
 
+export const VIDEO_EXTS = new Set(["mp4", "webm", "ogv", "mov"]);
+
+export const AUDIO_EXTS = new Set(["mp3", "wav", "ogg", "flac", "aac", "m4a"]);
+
+export const VIDEO_MIME: Record<string, string> = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  ogv: "video/ogg",
+  mov: "video/mp4",
+};
+
+export const AUDIO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  flac: "audio/flac",
+  aac: "audio/aac",
+  m4a: "audio/mp4",
+};
+
 export const IMAGE_MIME: Record<string, string> = {
   png: "image/png",
   jpg: "image/jpeg",
@@ -51,7 +70,6 @@ export const IMAGE_MIME: Record<string, string> = {
   svg: "image/svg+xml",
   ico: "image/x-icon",
   bmp: "image/bmp",
-  tiff: "image/tiff",
   avif: "image/avif",
 };
 

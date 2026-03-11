@@ -16,15 +16,26 @@
 }
 
 :root {
-  --c-bg: #faf7f4;
-  --c-surface: #f0ebe4;
-  --c-border: #ddd3c8;
+  --c-bg: #fdf8f2;
+  --c-surface: #f5ede0;
+  --c-border: #e0d0c0;
   --c-text: #1c1410;
-  --c-muted: #8c7b6e;
-  --c-accent: #9b5e23;
-  --c-accent-hover: #7c4a1a;
-  --c-accent-subtle: #f5ece3;
+  --c-muted: #9a8070;
+  --c-accent: #b08855;
+  --c-accent-hover: #8f6e3f;
+  --c-accent-subtle: #f5e8d5;
   --c-danger: #b91c1c;
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-color-scheme: dark) {

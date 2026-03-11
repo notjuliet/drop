@@ -1,14 +1,8 @@
 import { useParams } from "@solidjs/router";
-import {
-  createSignal,
-  Show,
-  Switch,
-  Match,
-  onMount,
-  onCleanup,
-} from "solid-js";
+import { createSignal, Show, onMount, onCleanup } from "solid-js";
 
 import { importKey } from "../lib/crypto";
+import { btnClass, btnStyle, fadeIn } from "../lib/ui";
 import {
   formatBytes,
   formatExpiry,
@@ -16,11 +10,17 @@ import {
   triggerDownload,
   IMAGE_EXTS,
   TEXT_EXTS,
+  VIDEO_EXTS,
   IMAGE_MIME,
+  VIDEO_MIME,
+  AUDIO_MIME,
 } from "../lib/utils";
 
-type Stage = "loading" | "meta" | "content" | "error";
-type ContentType = "text" | "image" | "binary";
+const ghostClass =
+  "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded px-2 py-1 text-sm transition-colors";
+
+type Stage = "loading" | "meta" | "decrypting" | "content" | "error";
+type ContentType = "text" | "image" | "video" | "audio" | "binary";
 
 export default function View() {
   const params = useParams();
@@ -31,14 +31,15 @@ export default function View() {
   const [expiresAt, setExpiresAt] = createSignal(0);
   const [burnAfterRead, setBurnAfterRead] = createSignal(false);
   const [burned, setBurned] = createSignal(false);
-  const [loadBtnText, setLoadBtnText] = createSignal("View");
-  const [loadBtnDisabled, setLoadBtnDisabled] = createSignal(false);
+  const [progress, setProgress] = createSignal(0);
+  const [decrypting, setDecrypting] = createSignal(false);
 
   const [contentType, setContentType] = createSignal<ContentType>("binary");
   const [textContent, setTextContent] = createSignal("");
   const [imageSrc, setImageSrc] = createSignal("");
-  const [imageAlt, setImageAlt] = createSignal("");
+  const [mediaSrc, setMediaSrc] = createSignal("");
   const [fileName, setFileName] = createSignal("");
+  const [copied, setCopied] = createSignal(false);
 
   let decryptedBlob: Blob | null = null;
   const worker = new Worker(
@@ -47,6 +48,7 @@ export default function View() {
       type: "module",
     },
   );
+
   onCleanup(() => worker.terminate());
 
   onMount(async () => {
@@ -78,22 +80,43 @@ export default function View() {
     setSize(info.size);
     setExpiresAt(info.expiresAt);
     setBurnAfterRead(info.burnAfterRead);
-    setStage("meta");
+
+    if (info.burnAfterRead) {
+      setStage("meta");
+    } else {
+      handleView();
+    }
   });
 
   const handleView = async () => {
-    setLoadBtnDisabled(true);
-    setLoadBtnText("Decrypting\u2026");
+    setStage("decrypting");
+    setProgress(0);
+    setDecrypting(false);
 
     try {
-      const res = await fetch(`/api/file/${params.id}`);
-      if (!res.ok) {
-        setError("File not found or expired.");
-        setStage("error");
-        return;
-      }
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", `/api/file/${params.id}`);
+      xhr.responseType = "arraybuffer";
 
-      const buf = await res.arrayBuffer();
+      const buf = await new Promise<ArrayBuffer>((resolve, reject) => {
+        xhr.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setProgress(Math.round((e.loaded / e.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setProgress(100);
+            setDecrypting(true);
+            resolve(xhr.response);
+          } else {
+            reject(new Error("File not found or expired."));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Download failed."));
+        xhr.send();
+      });
+
       const { fileName: name, fileData } = await new Promise<{
         fileName: string;
         fileData: Uint8Array<ArrayBuffer>;
@@ -111,18 +134,28 @@ export default function View() {
           [buf],
         );
       });
+
       const ext = getExt(name);
       setFileName(name);
 
       if (burnAfterRead()) setBurned(true);
 
-      if (IMAGE_EXTS.has(ext)) {
-        const mime = IMAGE_MIME[ext] || "image/png";
+      const mime =
+        IMAGE_MIME[ext] || VIDEO_MIME[ext] || AUDIO_MIME[ext] || undefined;
+      if (mime) {
         const blob = new Blob([fileData], { type: mime });
         decryptedBlob = blob;
-        setImageSrc(URL.createObjectURL(blob));
-        setImageAlt(name);
-        setContentType("image");
+        const url = URL.createObjectURL(blob);
+        if (IMAGE_EXTS.has(ext)) {
+          setImageSrc(url);
+          setContentType("image");
+        } else if (VIDEO_EXTS.has(ext)) {
+          setMediaSrc(url);
+          setContentType("video");
+        } else {
+          setMediaSrc(url);
+          setContentType("audio");
+        }
       } else if (TEXT_EXTS.has(ext)) {
         setTextContent(new TextDecoder().decode(fileData));
         setContentType("text");
@@ -132,153 +165,146 @@ export default function View() {
       }
 
       setStage("content");
-    } catch {
-      setError("Failed to decrypt. The key may be wrong.");
-      setLoadBtnDisabled(false);
-      setLoadBtnText("Retry");
+    } catch (e: any) {
+      setError(e.message || "Failed to decrypt.");
+      setStage("error");
     }
   };
 
   const copyText = () => {
     navigator.clipboard.writeText(textContent());
-  };
-
-  const viewRaw = () => {
-    const blob = new Blob([textContent()], { type: "text/plain" });
-    window.open(URL.createObjectURL(blob));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   const saveFile = () => {
-    if (decryptedBlob) triggerDownload(decryptedBlob, fileName());
+    if (contentType() === "text") {
+      const blob = new Blob([textContent()], { type: "text/plain" });
+      triggerDownload(blob, fileName());
+    } else if (decryptedBlob) {
+      triggerDownload(decryptedBlob, fileName());
+    }
   };
 
   return (
     <>
-      <Show when={stage() === "meta"}>
-        <div>
-          <div class="mb-1 text-base">Encrypted file</div>
-          <div class="text-muted mb-1 flex gap-3 text-xs">
-            <span>{formatBytes(size())}</span>
-            <span>{formatExpiry(expiresAt())}</span>
-          </div>
-          <Show when={burnAfterRead()}>
-            <div class="mb-3">
-              <span
-                class="text-danger inline-block rounded-full px-2 py-0.5 text-[10px] font-medium"
-                style={{
-                  background:
-                    "color-mix(in srgb, var(--color-danger) 10%, transparent)",
-                }}
-              >
-                Burns after viewing
-              </span>
-            </div>
-          </Show>
-          <div class="mt-4">
-            <button
-              class="bg-accent hover:bg-accent-hover w-full rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={loadBtnDisabled()}
-              onClick={handleView}
+      <Show when={stage() === "loading"}>
+        <div class="flex justify-center">
+          <span class="text-muted text-xs">loading…</span>
+        </div>
+      </Show>
+
+      <Show when={stage() === "decrypting"}>
+        <div class="flex flex-col items-center gap-2" style={fadeIn}>
+          <Show
+            when={!decrypting()}
+            fallback={<span class="text-muted text-xs">decrypting…</span>}
+          >
+            <span
+              class="text-accent font-medium tabular-nums"
+              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
             >
-              {loadBtnText()}
-            </button>
-          </div>
+              {progress()}%
+            </span>
+            <span class="text-muted text-xs">downloading…</span>
+          </Show>
+        </div>
+      </Show>
+
+      <Show when={stage() === "meta"}>
+        <div class="flex flex-col items-center gap-3" style={fadeIn}>
+          <span
+            class="text-muted"
+            style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+          >
+            {formatBytes(size())}
+          </span>
+          <button class={btnClass} style={btnStyle} onClick={handleView}>
+            view
+          </button>
+          <span class="text-muted text-xs">
+            {formatExpiry(expiresAt())} · burns after viewing
+          </span>
+        </div>
+      </Show>
+
+      <Show when={stage() === "error"}>
+        <div class="flex justify-center" style={fadeIn}>
+          <span class="text-danger text-sm">{error()}</span>
         </div>
       </Show>
 
       <Show when={stage() === "content"}>
-        <Switch>
-          <Match when={contentType() === "text"}>
-            <div class="relative">
-              <div class="absolute top-2 right-2 z-10 flex gap-1">
-                <button
-                  class="bg-surface text-muted hover:text-text border-border rounded-md border p-1.5 transition-colors"
-                  title="Copy"
-                  onClick={copyText}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-                  </svg>
+        <div class="mx-auto flex w-full flex-col gap-4" style={fadeIn}>
+          <div
+            class="flex items-center justify-between gap-4"
+            style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+          >
+            <span class="text-text flex min-w-0 gap-1.5">
+              <span class="truncate">{fileName()}</span>
+              <span class="text-muted shrink-0 font-medium">
+                {formatBytes(size())}
+              </span>
+            </span>
+            <div class="flex shrink-0 items-center gap-2">
+              <Show when={contentType() === "text"}>
+                <button class={ghostClass} onClick={copyText}>
+                  {copied() ? "copied!" : "copy"}
                 </button>
-                <button
-                  class="bg-surface text-muted hover:text-text border-border rounded-md border p-1.5 transition-colors"
-                  title="Raw"
-                  onClick={viewRaw}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <polyline points="4 7 4 4 20 4 20 7" />
-                    <line x1="9" x2="15" y1="20" y2="20" />
-                    <line x1="12" x2="12" y1="4" y2="20" />
-                  </svg>
+              </Show>
+              <Show when={contentType() !== "binary"}>
+                <button class={ghostClass} onClick={saveFile}>
+                  save
                 </button>
-              </div>
-              <div class="bg-surface border-border max-h-[60vh] w-full overflow-auto rounded-lg border p-4 pt-10 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
-                {textContent()}
-              </div>
+              </Show>
             </div>
-          </Match>
+          </div>
 
-          <Match when={contentType() === "image"}>
-            <div class="w-full">
+          <Show when={contentType() === "image"}>
+            <div class="bg-surface border-border flex items-center justify-center rounded-lg border p-4">
               <img
                 src={imageSrc()}
-                alt={imageAlt()}
-                class="max-w-full rounded-lg shadow-sm"
+                alt={fileName()}
+                class="max-h-[70vh] w-fit max-w-full rounded"
               />
             </div>
-            <div class="mt-3">
-              <button
-                class="bg-surface text-text border-border hover:bg-surface w-full rounded-md border py-2 text-sm font-medium transition-colors"
-                onClick={saveFile}
-              >
-                Save
+          </Show>
+          <Show when={contentType() === "video"}>
+            <div class="bg-surface border-border flex items-center justify-center rounded-lg border p-4">
+              <video
+                src={mediaSrc()}
+                controls
+                class="max-h-[70vh] w-fit max-w-full rounded"
+              />
+            </div>
+          </Show>
+          <Show when={contentType() === "audio"}>
+            <div class="bg-surface border-border rounded-lg border p-4">
+              <audio src={mediaSrc()} controls class="w-full" />
+            </div>
+          </Show>
+          <Show when={contentType() === "text"}>
+            <div class="bg-surface border-border max-h-[70vh] w-full overflow-auto rounded-lg border p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
+              {textContent()}
+            </div>
+          </Show>
+          <Show when={contentType() === "binary"}>
+            <div class="flex justify-center">
+              <button class={btnClass} style={btnStyle} onClick={saveFile}>
+                download
               </button>
             </div>
-          </Match>
+          </Show>
 
-          <Match when={contentType() === "binary"}>
-            <div class="bg-surface border-border rounded-lg border p-4 text-center">
-              <p class="mb-3 text-sm">{fileName()}</p>
-              <button
-                class="bg-accent hover:bg-accent-hover w-full rounded-md border-none py-2.5 text-sm font-medium text-white transition-colors"
-                onClick={saveFile}
-              >
-                Download
-              </button>
-            </div>
-          </Match>
-        </Switch>
-
-        <Show when={burned()}>
-          <div class="text-danger mt-3 text-xs">
-            This file has been burned and can no longer be viewed.
+          <div class="flex items-center justify-between">
+            <span class={`text-xs ${burned() ? "text-danger" : "text-muted"}`}>
+              {burned() ? "burned" : formatExpiry(expiresAt())}
+            </span>
+            <a href="/" class={ghostClass}>
+              new drop
+            </a>
           </div>
-        </Show>
-      </Show>
-
-      <Show when={stage() === "error"}>
-        <div class="text-danger mt-4 text-xs">{error()}</div>
+        </div>
       </Show>
     </>
   );

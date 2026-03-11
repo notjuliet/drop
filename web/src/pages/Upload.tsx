@@ -8,16 +8,11 @@ import {
 } from "solid-js";
 
 import { generateKey } from "../lib/crypto";
+import { btnClass, btnStyle, fadeIn } from "../lib/ui";
 import { formatBytes } from "../lib/utils";
 
-const viewClass = "flex flex-col items-center gap-2 sm:gap-3";
-const fadeIn = { animation: "fade-in 0.4s" };
-
-const btnClass =
-  "bg-transparent hover:bg-accent/10 active:scale-95 border-accent text-accent rounded-md border px-4 py-1.5 font-medium transition";
-const btnStyle = { "font-size": "clamp(1rem, 3vw, 1.5rem)" };
 const ghostClass =
-  "text-muted hover:text-accent-hover border-none bg-transparent p-0 text-[10px] sm:text-xs";
+  "text-muted hover:text-accent-hover border-none bg-transparent min-w-16 py-1.5 -my-1.5 text-[10px] sm:text-xs";
 
 const DURATION_UNITS: Record<string, number> = {
   s: 1,
@@ -56,7 +51,6 @@ export default function Upload() {
   const RADIUS = 130;
   const CENTER = RADIUS + 10;
   const SIZE = CENTER * 2;
-  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
   const WAVE_AMP = 3;
   const WAVE_LEN = RADIUS; // one full wave period
 
@@ -64,7 +58,7 @@ export default function Upload() {
     const topY = CENTER - RADIUS + 2 * RADIUS * (1 - progress() / 100);
     const left = CENTER - RADIUS - WAVE_LEN;
     const right = CENTER + RADIUS + WAVE_LEN;
-    const bottom = CENTER + RADIUS;
+    const bottom = CENTER + RADIUS + 2;
     let d = `M ${left} ${bottom} V ${topY}`;
     for (let x = left; x < right; x += WAVE_LEN / 2) {
       const cx = x + WAVE_LEN / 4;
@@ -76,21 +70,6 @@ export default function Upload() {
     d += ` V ${bottom} Z`;
     return d;
   };
-
-  let prevRatio = 0;
-  const sizeRatio = createMemo(() => {
-    const f = file();
-    const max = maxFileSize();
-    if (!f || !max) return 0;
-    return Math.min(f.size / max, 1);
-  });
-
-  const animDuration = createMemo(() => {
-    const cur = sizeRatio();
-    const dur = Math.max(Math.max(cur, prevRatio) * 800, 200);
-    prevRatio = cur;
-    return dur;
-  });
 
   const tooLarge = createMemo(() => {
     const f = file();
@@ -285,47 +264,36 @@ export default function Upload() {
             </clipPath>
           </defs>
           <style>{`@keyframes wave { from { transform: translateX(0) } to { transform: translateX(-${WAVE_LEN}px) } }`}</style>
-          <style>{`@keyframes fade-in { 0% { opacity: 0; transform: translateY(4px) } 100% { opacity: 1; transform: translateY(0) } }`}</style>
           <circle
             cx={CENTER}
             cy={CENTER}
             r={RADIUS}
             fill="none"
-            stroke={dragging() ? "var(--color-accent)" : "var(--color-border)"}
+            stroke={
+              tooLarge()
+                ? "var(--color-danger)"
+                : dragging() || view() === "result"
+                  ? "var(--color-accent)"
+                  : "var(--color-border)"
+            }
             stroke-width="7"
             pathLength={dragging() ? "100" : undefined}
             stroke-dasharray={dragging() ? "3 2" : "none"}
             class="transition-all duration-200"
           />
-          <circle
-            cx={CENTER}
-            cy={CENTER}
-            r={RADIUS}
-            fill="none"
-            stroke={tooLarge() ? "var(--color-danger)" : "var(--color-accent)"}
-            stroke-width="7"
-            stroke-dasharray={`${CIRCUMFERENCE}`}
-            stroke-dashoffset={`${CIRCUMFERENCE * (1 - (status() !== "idle" || dragging() ? 0 : sizeRatio()))}`}
-            stroke-linecap="round"
-            transform={`rotate(-90 ${CENTER} ${CENTER})`}
-            style={{
-              transition: dragging()
-                ? "none"
-                : `all ${animDuration()}ms ease-out`,
-            }}
-          />
           {/* Upload liquid fill */}
-          <g clip-path="url(#circle-clip)">
-            <path
-              d={wavePath()}
-              fill="var(--color-border)"
-              style={{
-                transition: "d 300ms ease-out",
-                animation:
-                  status() === "uploading" ? `wave 2s linear infinite` : "none",
-              }}
-            />
-          </g>
+          <Show when={status() === "uploading"}>
+            <g clip-path="url(#circle-clip)">
+              <path
+                d={wavePath()}
+                fill="var(--color-border)"
+                style={{
+                  transition: "d 300ms ease-out",
+                  animation: `wave 2s linear infinite`,
+                }}
+              />
+            </g>
+          </Show>
         </svg>
 
         <div class="z-10 flex flex-col items-center text-center">
@@ -334,7 +302,7 @@ export default function Upload() {
           </Show>
           <Show when={!loading()}>
             <Show when={view() === "result"}>
-              <div class={viewClass} style={fadeIn}>
+              <div class="flex flex-col items-center gap-3" style={fadeIn}>
                 <span
                   class="text-muted"
                   style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
@@ -358,13 +326,15 @@ export default function Upload() {
             </Show>
 
             <Show when={view() === "uploading"}>
-              <div class={viewClass} style={fadeIn}>
-                <span
-                  class="text-accent font-medium tabular-nums"
-                  style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
-                >
-                  {progress()}%
-                </span>
+              <div class="flex flex-col items-center gap-3" style={fadeIn}>
+                <Show when={status() === "uploading"}>
+                  <span
+                    class="text-accent font-medium tabular-nums"
+                    style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+                  >
+                    {progress()}%
+                  </span>
+                </Show>
                 <span class="text-muted text-[10px] sm:text-xs">
                   {status() === "encrypting"
                     ? "encrypting\u2026"
@@ -383,7 +353,7 @@ export default function Upload() {
             </Show>
 
             <Show when={view() === "file"}>
-              <div class={viewClass} style={fadeIn}>
+              <div class="flex flex-col items-center gap-3" style={fadeIn}>
                 <span
                   class="text-text flex gap-1.5 truncate"
                   style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
@@ -427,7 +397,7 @@ export default function Upload() {
             </Show>
 
             <Show when={view() === "empty"}>
-              <div class={viewClass} style={fadeIn}>
+              <div class="flex flex-col items-center gap-3" style={fadeIn}>
                 <span
                   class="text-muted font-medium"
                   style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
