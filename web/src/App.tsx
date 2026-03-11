@@ -5,7 +5,8 @@ export default function App(props: ParentProps) {
     <div class="text-text flex min-h-screen flex-col items-center justify-center px-4 font-sans">
       <div class="mt-6 w-full max-w-2xl">{props.children}</div>
       <a
-        class="text-muted hover:text-accent-hover mt-auto p-4 text-[10px]"
+        class="text-muted hover:text-accent-hover mt-auto px-4 pt-4 text-[10px]"
+        style={{ "padding-bottom": "max(1rem, env(safe-area-inset-bottom))" }}
         href="https://github.com/notjuliet/drop"
       >
         source code
