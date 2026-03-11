@@ -264,7 +264,7 @@ export default function View() {
               <img
                 src={imageSrc()}
                 alt={fileName()}
-                class="max-h-[70vh] w-fit max-w-full rounded"
+                class="max-h-[70vh] w-fit max-w-full rounded object-contain"
               />
             </div>
           </Show>
@@ -273,7 +273,7 @@ export default function View() {
               <video
                 src={mediaSrc()}
                 controls
-                class="max-h-[70vh] w-fit max-w-full rounded"
+                class="max-h-[70vh] w-fit max-w-full rounded object-contain"
               />
             </div>
           </Show>
