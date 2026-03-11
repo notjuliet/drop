@@ -1,4 +1,11 @@
-import { createSignal, Show, onMount, onCleanup, createMemo } from "solid-js";
+import {
+  createSignal,
+  Show,
+  onMount,
+  onCleanup,
+  createMemo,
+  createEffect,
+} from "solid-js";
 
 import { generateKey, encrypt } from "../lib/crypto";
 import { formatBytes } from "../lib/utils";
@@ -235,6 +242,11 @@ export default function Upload() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  createEffect(() => {
+    document.title =
+      status() === "uploading" ? `${progress()}% — drop` : "drop";
+  });
 
   return (
     <>
