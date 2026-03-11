@@ -1,4 +1,3 @@
-import { useParams } from "@solidjs/router";
 import { createSignal, Show, onMount, onCleanup } from "solid-js";
 
 import { importKey } from "../lib/crypto";
@@ -23,7 +22,8 @@ type Stage = "loading" | "meta" | "decrypting" | "content" | "error";
 type ContentType = "text" | "image" | "video" | "audio" | "binary";
 
 export default function View() {
-  const params = useParams();
+  const parts = location.pathname.split("/").filter(Boolean);
+  const id = parts[0] === "p" ? parts[1] : parts[0];
 
   const [stage, setStage] = createSignal<Stage>("loading");
   const [error, setError] = createSignal("");
@@ -52,7 +52,7 @@ export default function View() {
   onCleanup(() => worker.terminate());
 
   onMount(async () => {
-    const id = params.id;
+
     const keyEncoded = window.location.hash.slice(1);
 
     if (!id || !keyEncoded) {
@@ -95,7 +95,7 @@ export default function View() {
 
     try {
       const xhr = new XMLHttpRequest();
-      xhr.open("GET", `/api/file/${params.id}`);
+      xhr.open("GET", `/api/file/${id}`);
       xhr.responseType = "arraybuffer";
 
       const buf = await new Promise<ArrayBuffer>((resolve, reject) => {

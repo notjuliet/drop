@@ -1,4 +1,3 @@
-import { Router, Route } from "@solidjs/router";
 import { render } from "solid-js/web";
 
 import App from "./App";
@@ -7,12 +6,10 @@ import View from "./pages/View";
 
 import "./styles.css";
 
+const Page = () =>
+  location.pathname === "/" ? <Upload /> : <View />;
+
 render(
-  () => (
-    <Router root={App}>
-      <Route path="/" component={Upload} />
-      <Route path="/p/:id" component={View} />
-    </Router>
-  ),
+  () => <App><Page /></App>,
   document.getElementById("root")!,
 );

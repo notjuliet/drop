@@ -224,7 +224,7 @@ export default function Upload() {
         xhr.send(formData);
       });
 
-      const url = `${location.origin}/p/${res.id}#${encoded}`;
+      const url = `${location.origin}/${res.id}#${encoded}`;
       setResultUrl(url);
       removeFile();
     } catch (e: any) {
