@@ -12,7 +12,7 @@ import { btnClass, btnStyle, fadeIn } from "../lib/ui";
 import { formatBytes } from "../lib/utils";
 
 const ghostClass =
-  "text-muted hover:text-accent-hover border-none bg-transparent min-w-16 py-1.5 -my-1.5 text-[10px] sm:text-xs";
+  "text-muted hover:text-accent-hover border-none bg-transparent min-w-16 py-1.5 -my-1.5 text-xs";
 
 const DURATION_UNITS: Record<string, number> = {
   s: 1,
@@ -191,7 +191,7 @@ export default function Upload() {
 
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));
-      formData.append("expiresIn", expiryValue().trim());
+      formData.append("expiresIn", expiryValue().trim() || maxTtl());
       formData.append("burnAfterRead", burn() ? "true" : "false");
 
       setStatus("uploading");
@@ -276,7 +276,7 @@ export default function Upload() {
                   ? "var(--color-accent)"
                   : "var(--color-border)"
             }
-            stroke-width="7"
+            stroke-width="5"
             pathLength={dragging() ? "100" : undefined}
             stroke-dasharray={dragging() ? "3 2" : "none"}
             class="transition-all duration-200"
@@ -312,16 +312,6 @@ export default function Upload() {
                 <button class={btnClass} style={btnStyle} onClick={copyLink}>
                   {copied() ? "copied!" : "copy link"}
                 </button>
-                <button
-                  class={ghostClass}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setResultUrl("");
-                    removeFile();
-                  }}
-                >
-                  new drop
-                </button>
               </div>
             </Show>
 
@@ -353,45 +343,76 @@ export default function Upload() {
             </Show>
 
             <Show when={view() === "file"}>
-              <div class="flex flex-col items-center gap-3" style={fadeIn}>
-                <span
-                  class="text-text flex gap-1.5 truncate"
-                  style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
-                >
+              <div class="flex flex-col items-center gap-4" style={fadeIn}>
+                <div class="flex flex-col items-center gap-2">
                   <span
-                    class="truncate"
-                    style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                    class="text-text flex gap-1.5 truncate"
+                    style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
                   >
-                    {file()!.name}
+                    <span
+                      class="truncate"
+                      style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                    >
+                      {file()!.name}
+                    </span>
+                    <span
+                      class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                      style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                    >
+                      {tooLarge()
+                        ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
+                        : formatBytes(file()!.size)}
+                    </span>
                   </span>
-                  <span
-                    class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
-                    style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-                  >
-                    {tooLarge()
-                      ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
-                      : formatBytes(file()!.size)}
-                  </span>
-                </span>
+                  <div class="flex items-center gap-4 text-xs sm:text-sm">
+                    <input
+                      type="text"
+                      value={expiryValue()}
+                      placeholder={maxTtl() || "7d"}
+                      onInput={(e) => setExpiryValue(e.currentTarget.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      class={`text-accent w-14 border-b bg-transparent text-center font-medium transition-colors outline-none ${expiryTooLong() ? "border-danger" : "border-border focus:border-accent"}`}
+                    />
+                    <button
+                      class={`flex items-center gap-1.5 transition-colors select-none ${burn() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBurn((b) => !b);
+                      }}
+                    >
+                      <div
+                        class={`flex size-4 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
+                      >
+                        <Show when={burn()}>
+                          <svg
+                            class="text-bg h-3 w-3"
+                            viewBox="0 0 12 12"
+                            fill="none"
+                          >
+                            <path
+                              d="M2 6l3 3 5-5"
+                              stroke="currentColor"
+                              stroke-width="1.5"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                            />
+                          </svg>
+                        </Show>
+                      </div>
+                      burn
+                    </button>
+                  </div>
+                </div>
                 <button
                   class={`${btnClass} disabled:cursor-not-allowed disabled:opacity-40`}
                   style={btnStyle}
-                  disabled={tooLarge()}
+                  disabled={tooLarge() || expiryTooLong()}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleUpload();
                   }}
                 >
                   upload
-                </button>
-                <button
-                  class={ghostClass}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile();
-                  }}
-                >
-                  remove
                 </button>
               </div>
             </Show>
@@ -434,43 +455,17 @@ export default function Upload() {
         />
       </div>
 
-      <Show when={!loading() && view() !== "result"}>
-        <div class="mx-auto mt-6 flex w-fit flex-col gap-4 text-sm">
-          <label class="text-muted flex items-center gap-3 select-none">
-            lifetime
-            <input
-              type="text"
-              value={expiryValue()}
-              placeholder="30m, 24h, 7d"
-              onInput={(e) => setExpiryValue(e.currentTarget.value)}
-              class={`bg-surface text-accent w-28 rounded-md border px-2 py-1 text-center font-medium transition-colors outline-none ${expiryTooLong() ? "border-danger" : "border-border focus:border-accent"}`}
-            />
-          </label>
-          <label
-            class="text-muted flex items-center gap-3 select-none"
-            onClick={() => setBurn((b) => !b)}
+      <Show when={view() === "file" || view() === "result"}>
+        <div class="mt-4 flex justify-center" style={fadeIn}>
+          <button
+            class={ghostClass}
+            onClick={() => {
+              setResultUrl("");
+              removeFile();
+            }}
           >
-            burn after read
-            <div
-              class={`flex size-5 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
-            >
-              <Show when={burn()}>
-                <svg
-                  class="text-bg h-3.5 w-3.5"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                >
-                  <path
-                    d="M2 6l3 3 5-5"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </Show>
-            </div>
-          </label>
+            new drop
+          </button>
         </div>
       </Show>
 
