@@ -5,14 +5,14 @@
     "": {
       "name": "drop",
       "dependencies": {
-        "hono": "latest",
+        "hono": "^4.12.12",
       },
       "devDependencies": {
-        "@types/bun": "latest",
-        "oxfmt": "latest",
+        "@types/bun": "^1.3.12",
+        "oxfmt": "^0.44.0",
       },
       "peerDependencies": {
-        "typescript": "latest",
+        "typescript": "^6.0.2",
       },
     },
   },

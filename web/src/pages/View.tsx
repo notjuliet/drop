@@ -18,6 +18,26 @@ import {
 const ghostClass =
   "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded px-2 py-1 text-sm transition-colors";
 
+function isAudioOnlyWebm(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.muted = true;
+    let done = false;
+    const finish = (result: boolean) => {
+      if (done) return;
+      done = true;
+      v.removeAttribute("src");
+      v.load();
+      resolve(result);
+    };
+    v.onloadedmetadata = () => finish(v.videoWidth === 0 && v.videoHeight === 0);
+    v.onerror = () => finish(false);
+    setTimeout(() => finish(false), 2000);
+    v.src = url;
+  });
+}
+
 type Stage = "loading" | "meta" | "decrypting" | "content" | "error";
 type ContentType = "text" | "image" | "video" | "audio" | "binary";
 
@@ -146,7 +166,11 @@ export default function View() {
           setContentType("image");
         } else if (VIDEO_EXTS.has(ext)) {
           setMediaSrc(url);
-          setContentType("video");
+          if (ext === "webm" && (await isAudioOnlyWebm(url))) {
+            setContentType("audio");
+          } else {
+            setContentType("video");
+          }
         } else {
           setMediaSrc(url);
           setContentType("audio");

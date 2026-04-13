@@ -23,19 +23,21 @@ function parseDuration(s: string): number | undefined {
 type Status = "idle" | "encrypting" | "uploading";
 type View = "result" | "uploading" | "file" | "empty" | "recording";
 
-const REC_MIMES: { mime: string; ext: string }[] = [
-  { mime: "audio/webm;codecs=opus", ext: "webm" },
-  { mime: "audio/webm", ext: "webm" },
-  { mime: "audio/mp4", ext: "mp4" },
-  { mime: "audio/ogg;codecs=opus", ext: "ogg" },
-];
-function pickRecMime() {
+const REC_MIMES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+function pickRecMime(): string | null {
   const MR = (window as any).MediaRecorder;
   if (!MR) return null;
   for (const m of REC_MIMES) {
-    if (MR.isTypeSupported?.(m.mime)) return m;
+    if (MR.isTypeSupported?.(m)) return m;
   }
-  return { mime: "", ext: "webm" };
+  return "";
+}
+function extForAudio(mimeType: string): string {
+  const base = mimeType.split(";")[0].toLowerCase();
+  if (base.includes("mp4") || base.includes("aac") || base.includes("mpeg")) return "m4a";
+  if (base.includes("ogg")) return "ogg";
+  if (base.includes("wav")) return "wav";
+  return "webm";
 }
 
 function formatTime(s: number) {
@@ -159,8 +161,8 @@ export default function Upload() {
   };
 
   const startRecording = async () => {
-    const picked = pickRecMime();
-    if (!picked) {
+    const pickedMime = pickRecMime();
+    if (pickedMime === null) {
       setError("recording not supported in this browser");
       return;
     }
@@ -198,16 +200,18 @@ export default function Upload() {
     } catch {}
 
     const chunks: BlobPart[] = [];
-    const mr = new MediaRecorder(mediaStream, picked.mime ? { mimeType: picked.mime } : undefined);
+    const mr = new MediaRecorder(mediaStream, pickedMime ? { mimeType: pickedMime } : undefined);
     mediaRecorder = mr;
     mr.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
     mr.onstop = () => {
-      const type = picked.mime.split(";")[0] || "audio/webm";
-      const blob = new Blob(chunks, { type });
+      const actualMime = mr.mimeType || pickedMime || "audio/webm";
+      const baseType = actualMime.split(";")[0] || "audio/webm";
+      const ext = extForAudio(actualMime);
+      const blob = new Blob(chunks, { type: baseType });
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const f = new File([blob], `recording-${ts}.${picked.ext}`, { type });
+      const f = new File([blob], `recording-${ts}.${ext}`, { type: baseType });
       setFile(f);
       stopRecStream();
       setRecording(false);
