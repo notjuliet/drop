@@ -32,8 +32,8 @@ function isAudioOnlyWebm(url: string): Promise<boolean> {
       resolve(result);
     };
     v.onloadedmetadata = () => finish(v.videoWidth === 0 && v.videoHeight === 0);
-    v.onerror = () => finish(false);
-    setTimeout(() => finish(false), 2000);
+    v.onerror = () => finish(true);
+    setTimeout(() => finish(true), 2000);
     v.src = url;
   });
 }
