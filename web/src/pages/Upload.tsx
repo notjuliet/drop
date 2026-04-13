@@ -23,27 +23,22 @@ function parseDuration(s: string): number | undefined {
 type Status = "idle" | "encrypting" | "uploading";
 type View = "result" | "uploading" | "file" | "empty" | "recording";
 
-const isIOS =
-  typeof navigator !== "undefined" &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-const REC_MIMES = isIOS
-  ? ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
-  : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+const REC_MIMES = [
+  "audio/mp4;codecs=mp4a.40.2",
+  "audio/mp4",
+  "audio/webm;codecs=opus",
+  "audio/webm",
+];
 function pickRecMime(): string | null {
   const MR = (window as any).MediaRecorder;
   if (!MR) return null;
   for (const m of REC_MIMES) {
     if (MR.isTypeSupported?.(m)) return m;
   }
-  return "";
+  return null;
 }
 function extForAudio(mimeType: string): string {
-  const base = mimeType.split(";")[0].toLowerCase();
-  if (base.includes("mp4") || base.includes("aac") || base.includes("mpeg")) return "m4a";
-  if (base.includes("ogg")) return "ogg";
-  if (base.includes("wav")) return "wav";
-  return "webm";
+  return mimeType.toLowerCase().includes("mp4") ? "m4a" : "webm";
 }
 
 function formatTime(s: number) {
@@ -206,14 +201,14 @@ export default function Upload() {
     } catch {}
 
     const chunks: BlobPart[] = [];
-    const mr = new MediaRecorder(mediaStream, pickedMime ? { mimeType: pickedMime } : undefined);
+    const mr = new MediaRecorder(mediaStream, { mimeType: pickedMime });
     mediaRecorder = mr;
     mr.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
     mr.onstop = () => {
-      const actualMime = mr.mimeType || pickedMime || "audio/webm";
-      const baseType = actualMime.split(";")[0] || "audio/webm";
+      const actualMime = mr.mimeType || pickedMime;
+      const baseType = actualMime.split(";")[0];
       const ext = extForAudio(actualMime);
       const blob = new Blob(chunks, { type: baseType });
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
