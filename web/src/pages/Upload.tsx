@@ -23,7 +23,13 @@ function parseDuration(s: string): number | undefined {
 type Status = "idle" | "encrypting" | "uploading";
 type View = "result" | "uploading" | "file" | "empty" | "recording";
 
-const REC_MIMES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+const isIOS =
+  typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+const REC_MIMES = isIOS
+  ? ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
+  : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
 function pickRecMime(): string | null {
   const MR = (window as any).MediaRecorder;
   if (!MR) return null;
