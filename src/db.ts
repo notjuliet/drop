@@ -28,9 +28,7 @@ type FileRow = {
   burn_after_read: number;
 };
 
-const selectStmt = db.prepare<FileRow, [string]>(
-  "SELECT * FROM files WHERE id = ?",
-);
+const selectStmt = db.prepare<FileRow, [string]>("SELECT * FROM files WHERE id = ?");
 
 const deleteStmt = db.prepare<void, [string]>("DELETE FROM files WHERE id = ?");
 
@@ -42,11 +40,7 @@ const cleanStmt = db.prepare<{ id: string }, [number]>(
   "DELETE FROM files WHERE expires_at <= ? RETURNING id",
 );
 
-export function createFile(
-  id: string,
-  expiresAt: number,
-  burnAfterRead: boolean,
-): void {
+export function createFile(id: string, expiresAt: number, burnAfterRead: boolean): void {
   insertStmt.run(id, expiresAt, burnAfterRead ? 1 : 0);
 }
 

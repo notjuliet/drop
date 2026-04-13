@@ -40,10 +40,7 @@ file.post("/", async (c) => {
   const expiresInStr = typeof expiresIn === "string" ? expiresIn.trim() : "";
   const expiresInSec = expiresInStr ? parseDuration(expiresInStr) : undefined;
   if (!expiresInSec) {
-    return c.json(
-      { error: "Invalid lifetime. Use a duration like 30m, 24h, 7d" },
-      400,
-    );
+    return c.json({ error: "Invalid lifetime. Use a duration like 30m, 24h, 7d" }, 400);
   }
   if (expiresInSec > MAX_TTL) {
     return c.json({ error: "expiresIn exceeds maximum allowed TTL" }, 400);

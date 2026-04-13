@@ -1,13 +1,4 @@
-export const IMAGE_EXTS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "ico",
-  "bmp",
-  "avif",
-]);
+export const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "ico", "bmp", "avif"]);
 
 export const TEXT_EXTS = new Set([
   "txt",
@@ -87,11 +78,9 @@ export function formatExpiry(unixSec: number): string {
   const secs = unixSec - Math.floor(Date.now() / 1000);
   if (secs < 60) return "expires in less than a minute";
   const mins = Math.floor(secs / 60);
-  if (secs < 3600)
-    return `expires in ${mins} ${mins === 1 ? "minute" : "minutes"}`;
+  if (secs < 3600) return `expires in ${mins} ${mins === 1 ? "minute" : "minutes"}`;
   const hours = Math.floor(secs / 3600);
-  if (secs < 86400)
-    return `expires in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+  if (secs < 86400) return `expires in ${hours} ${hours === 1 ? "hour" : "hours"}`;
   const days = Math.floor(secs / 86400);
   return `expires in ${days} ${days === 1 ? "day" : "days"}`;
 }

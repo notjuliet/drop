@@ -1,11 +1,4 @@
-import {
-  createSignal,
-  Show,
-  onMount,
-  onCleanup,
-  createMemo,
-  createEffect,
-} from "solid-js";
+import { createSignal, Show, onMount, onCleanup, createMemo, createEffect } from "solid-js";
 
 import { generateKey } from "../lib/crypto";
 import { btnClass, btnStyle, fadeIn } from "../lib/ui";
@@ -28,7 +21,28 @@ function parseDuration(s: string): number | undefined {
 }
 
 type Status = "idle" | "encrypting" | "uploading";
-type View = "result" | "uploading" | "file" | "empty";
+type View = "result" | "uploading" | "file" | "empty" | "recording";
+
+const REC_MIMES: { mime: string; ext: string }[] = [
+  { mime: "audio/webm;codecs=opus", ext: "webm" },
+  { mime: "audio/webm", ext: "webm" },
+  { mime: "audio/mp4", ext: "mp4" },
+  { mime: "audio/ogg;codecs=opus", ext: "ogg" },
+];
+function pickRecMime() {
+  const MR = (window as any).MediaRecorder;
+  if (!MR) return null;
+  for (const m of REC_MIMES) {
+    if (MR.isTypeSupported?.(m.mime)) return m;
+  }
+  return { mime: "", ext: "webm" };
+}
+
+function formatTime(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r.toString().padStart(2, "0")}`;
+}
 
 export default function Upload() {
   const [file, setFile] = createSignal<File | null>(null);
@@ -43,10 +57,41 @@ export default function Upload() {
   const [maxTtl, setMaxTtl] = createSignal("");
   const [expiryValue, setExpiryValue] = createSignal("");
   const [loading, setLoading] = createSignal(true);
+  const [recording, setRecording] = createSignal(false);
+  const [recSeconds, setRecSeconds] = createSignal(0);
+  const [recLevel, setRecLevel] = createSignal(0);
+  const [previewUrl, setPreviewUrl] = createSignal("");
+
+  const previewKind = createMemo<"audio" | "video" | "image" | null>(() => {
+    const f = file();
+    if (!f) return null;
+    if (f.type.startsWith("audio/")) return "audio";
+    if (f.type.startsWith("video/")) return "video";
+    if (f.type.startsWith("image/")) return "image";
+    return null;
+  });
+
+  createEffect(() => {
+    const f = file();
+    const kind = previewKind();
+    if (f && kind) {
+      const url = URL.createObjectURL(f);
+      setPreviewUrl(url);
+      onCleanup(() => URL.revokeObjectURL(url));
+    } else {
+      setPreviewUrl("");
+    }
+  });
 
   let fileInput!: HTMLInputElement;
   let activeXhr: XMLHttpRequest | null = null;
   let worker: Worker | null = null;
+  let mediaRecorder: MediaRecorder | null = null;
+  let mediaStream: MediaStream | null = null;
+  let audioCtx: AudioContext | null = null;
+  let analyser: AnalyserNode | null = null;
+  let recTimer: number | null = null;
+  let levelRaf: number | null = null;
 
   const RADIUS = 130;
   const CENTER = RADIUS + 10;
@@ -63,8 +108,7 @@ export default function Upload() {
     for (let x = left; x < right; x += WAVE_LEN / 2) {
       const cx = x + WAVE_LEN / 4;
       const ex = x + WAVE_LEN / 2;
-      const dir =
-        ((x - left) / (WAVE_LEN / 2)) % 2 === 0 ? -WAVE_AMP : WAVE_AMP;
+      const dir = ((x - left) / (WAVE_LEN / 2)) % 2 === 0 ? -WAVE_AMP : WAVE_AMP;
       d += ` Q ${cx} ${topY + dir} ${ex} ${topY}`;
     }
     d += ` V ${bottom} Z`;
@@ -90,9 +134,103 @@ export default function Upload() {
   const view = createMemo<View>(() => {
     if (resultUrl()) return "result";
     if (status() !== "idle") return "uploading";
+    if (recording()) return "recording";
     if (file()) return "file";
     return "empty";
   });
+
+  const canRecord = !!pickRecMime() && !!navigator.mediaDevices?.getUserMedia;
+
+  const stopRecStream = () => {
+    if (recTimer !== null) {
+      clearInterval(recTimer);
+      recTimer = null;
+    }
+    if (levelRaf !== null) {
+      cancelAnimationFrame(levelRaf);
+      levelRaf = null;
+    }
+    mediaStream?.getTracks().forEach((t) => t.stop());
+    mediaStream = null;
+    audioCtx?.close().catch(() => {});
+    audioCtx = null;
+    analyser = null;
+    setRecLevel(0);
+  };
+
+  const startRecording = async () => {
+    const picked = pickRecMime();
+    if (!picked) {
+      setError("recording not supported in this browser");
+      return;
+    }
+    setError("");
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setError("microphone permission denied");
+      return;
+    }
+
+    try {
+      audioCtx = new AudioContext();
+      const src = audioCtx.createMediaStreamSource(mediaStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      let smoothed = 0;
+      const tick = () => {
+        if (!analyser) return;
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128;
+          sum += v * v;
+        }
+        const target = Math.min(1, Math.sqrt(sum / buf.length) * 5);
+        const k = target > smoothed ? 0.25 : 0.08;
+        smoothed += (target - smoothed) * k;
+        setRecLevel(smoothed);
+        levelRaf = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch {}
+
+    const chunks: BlobPart[] = [];
+    const mr = new MediaRecorder(mediaStream, picked.mime ? { mimeType: picked.mime } : undefined);
+    mediaRecorder = mr;
+    mr.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    mr.onstop = () => {
+      const type = picked.mime.split(";")[0] || "audio/webm";
+      const blob = new Blob(chunks, { type });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const f = new File([blob], `recording-${ts}.${picked.ext}`, { type });
+      setFile(f);
+      stopRecStream();
+      setRecording(false);
+    };
+    mr.start();
+    setRecSeconds(0);
+    setRecording(true);
+    recTimer = window.setInterval(() => setRecSeconds((s) => s + 1), 1000);
+  };
+
+  const stopRecording = () => {
+    mediaRecorder?.state === "recording" && mediaRecorder.stop();
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.onstop = null as any;
+      mediaRecorder.stop();
+    }
+    stopRecStream();
+    setRecording(false);
+    setRecSeconds(0);
+  };
 
   const handleDragOver = (e: DragEvent) => {
     e.preventDefault();
@@ -100,10 +238,7 @@ export default function Upload() {
   };
 
   const handleDragLeave = (e: DragEvent) => {
-    if (
-      e.relatedTarget === null ||
-      !document.body.contains(e.relatedTarget as Node)
-    ) {
+    if (e.relatedTarget === null || !document.body.contains(e.relatedTarget as Node)) {
       setDragging(false);
     }
   };
@@ -141,6 +276,7 @@ export default function Upload() {
     document.removeEventListener("dragleave", handleDragLeave);
     document.removeEventListener("drop", handleDrop);
     worker?.terminate();
+    cancelRecording();
   });
 
   const removeFile = () => {
@@ -171,23 +307,21 @@ export default function Upload() {
     try {
       const { encoded } = await generateKey();
       const buffer = await f.arrayBuffer();
-      const ciphertext = await new Promise<Uint8Array<ArrayBuffer>>(
-        (resolve, reject) => {
-          worker!.onmessage = (e) => {
-            if (e.data.error) reject(new Error(e.data.error));
-            else resolve(e.data.ciphertext);
-          };
-          worker!.postMessage(
-            {
-              type: "encrypt",
-              fileName: f.name || "file",
-              fileBuffer: buffer,
-              keyEncoded: encoded,
-            },
-            [buffer],
-          );
-        },
-      );
+      const ciphertext = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
+        worker!.onmessage = (e) => {
+          if (e.data.error) reject(new Error(e.data.error));
+          else resolve(e.data.ciphertext);
+        };
+        worker!.postMessage(
+          {
+            type: "encrypt",
+            fileName: f.name || "file",
+            fileBuffer: buffer,
+            keyEncoded: encoded,
+          },
+          [buffer],
+        );
+      });
 
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));
@@ -244,20 +378,16 @@ export default function Upload() {
   };
 
   createEffect(() => {
-    document.title =
-      status() === "uploading" ? `${progress()}% — drop` : "drop";
+    document.title = status() === "uploading" ? `${progress()}% — drop` : "drop";
   });
 
   return (
     <>
       <div
-        class="group relative mx-auto flex aspect-square w-[80vw] max-w-125 items-center justify-center"
+        class="group relative mx-auto flex aspect-square w-[90vw] max-w-125 items-center justify-center sm:w-[80vw]"
         onClick={() => view() === "empty" && fileInput.click()}
       >
-        <svg
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
-          class="absolute inset-0 h-full w-full"
-        >
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} class="absolute inset-0 h-full w-full">
           <defs>
             <clipPath id="circle-clip">
               <circle cx={CENTER} cy={CENTER} r={RADIUS} />
@@ -281,6 +411,21 @@ export default function Upload() {
             stroke-dasharray={dragging() ? "3 2" : "none"}
             class="transition-all duration-200"
           />
+          <Show when={view() === "recording"}>
+            <circle
+              cx={CENTER}
+              cy={CENTER}
+              r={RADIUS}
+              fill="var(--color-accent)"
+              fill-opacity={recLevel() * 0.22}
+              stroke="var(--color-accent)"
+              stroke-width="5"
+              opacity={recLevel() > 0.05 ? Math.min(1, recLevel() * 1.5) : 0}
+              style={{
+                transition: "opacity 120ms linear, fill-opacity 120ms linear",
+              }}
+            />
+          </Show>
           {/* Upload liquid fill */}
           <Show when={status() === "uploading"}>
             <g clip-path="url(#circle-clip)">
@@ -303,10 +448,7 @@ export default function Upload() {
           <Show when={!loading()}>
             <Show when={view() === "result"}>
               <div class="flex flex-col items-center gap-3" style={fadeIn}>
-                <span
-                  class="text-muted"
-                  style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-                >
+                <span class="text-muted" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
                   expires in {expiryValue()}
                 </span>
                 <button class={btnClass} style={btnStyle} onClick={copyLink}>
@@ -326,9 +468,7 @@ export default function Upload() {
                   </span>
                 </Show>
                 <span class="text-muted text-[10px] sm:text-xs">
-                  {status() === "encrypting"
-                    ? "encrypting\u2026"
-                    : "uploading\u2026"}
+                  {status() === "encrypting" ? "encrypting\u2026" : "uploading\u2026"}
                 </span>
                 <button
                   class={ghostClass}
@@ -344,15 +484,37 @@ export default function Upload() {
 
             <Show when={view() === "file"}>
               <div class="flex flex-col items-center gap-4" style={fadeIn}>
+                <Show when={previewUrl() && previewKind() === "audio"}>
+                  <audio
+                    src={previewUrl()}
+                    controls
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ "max-width": "min(80vw, 260px)", width: "260px" }}
+                  />
+                </Show>
+                <Show when={previewUrl() && previewKind() === "image"}>
+                  <img
+                    src={previewUrl()}
+                    onClick={(e) => e.stopPropagation()}
+                    class="max-h-28 rounded object-contain sm:max-h-40"
+                    style={{ "max-width": "min(55vw, 260px)" }}
+                  />
+                </Show>
+                <Show when={previewUrl() && previewKind() === "video"}>
+                  <video
+                    src={previewUrl()}
+                    controls
+                    onClick={(e) => e.stopPropagation()}
+                    class="max-h-28 rounded sm:max-h-40"
+                    style={{ "max-width": "min(55vw, 260px)" }}
+                  />
+                </Show>
                 <div class="flex flex-col items-center gap-2">
                   <span
                     class="text-text flex gap-1.5 truncate"
                     style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
                   >
-                    <span
-                      class="truncate"
-                      style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-                    >
+                    <span class="truncate" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
                       {file()!.name}
                     </span>
                     <span
@@ -384,11 +546,7 @@ export default function Upload() {
                         class={`flex size-4 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
                       >
                         <Show when={burn()}>
-                          <svg
-                            class="text-bg h-3 w-3"
-                            viewBox="0 0 12 12"
-                            fill="none"
-                          >
+                          <svg class="text-bg h-3 w-3" viewBox="0 0 12 12" fill="none">
                             <path
                               d="M2 6l3 3 5-5"
                               stroke="currentColor"
@@ -417,6 +575,37 @@ export default function Upload() {
               </div>
             </Show>
 
+            <Show when={view() === "recording"}>
+              <div class="flex flex-col items-center gap-3" style={fadeIn}>
+                <span
+                  class="text-accent font-medium tabular-nums"
+                  style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+                >
+                  {formatTime(recSeconds())}
+                </span>
+                <span class="text-muted text-[10px] sm:text-xs">recording…</span>
+                <button
+                  class={btnClass}
+                  style={btnStyle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    stopRecording();
+                  }}
+                >
+                  stop
+                </button>
+                <button
+                  class={ghostClass}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cancelRecording();
+                  }}
+                >
+                  cancel
+                </button>
+              </div>
+            </Show>
+
             <Show when={view() === "empty"}>
               <div class="flex flex-col items-center gap-3" style={fadeIn}>
                 <span
@@ -435,6 +624,20 @@ export default function Upload() {
                 >
                   browse
                 </button>
+                <Show when={canRecord}>
+                  <button
+                    class="text-muted hover:text-accent-hover flex items-center gap-2 border-none bg-transparent py-1 transition-colors"
+                    style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRecording();
+                    }}
+                    aria-label="record audio"
+                  >
+                    <span class="bg-danger inline-block size-2.5 rounded-full" />
+                    record
+                  </button>
+                </Show>
                 <Show when={maxFileSize()}>
                   <span class="text-muted text-[10px] sm:text-xs">
                     up to {formatBytes(maxFileSize())}

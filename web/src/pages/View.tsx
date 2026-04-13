@@ -42,12 +42,9 @@ export default function View() {
   const [copied, setCopied] = createSignal(false);
 
   let decryptedBlob: Blob | null = null;
-  const worker = new Worker(
-    new URL("../lib/crypto.worker.ts", import.meta.url),
-    {
-      type: "module",
-    },
-  );
+  const worker = new Worker(new URL("../lib/crypto.worker.ts", import.meta.url), {
+    type: "module",
+  });
 
   onCleanup(() => worker.terminate());
 
@@ -139,8 +136,7 @@ export default function View() {
 
       if (burnAfterRead()) setBurned(true);
 
-      const mime =
-        IMAGE_MIME[ext] || VIDEO_MIME[ext] || AUDIO_MIME[ext] || undefined;
+      const mime = IMAGE_MIME[ext] || VIDEO_MIME[ext] || AUDIO_MIME[ext] || undefined;
       if (mime) {
         const blob = new Blob([fileData], { type: mime });
         decryptedBlob = blob;
@@ -195,10 +191,7 @@ export default function View() {
 
       <Show when={stage() === "decrypting"}>
         <div class="flex flex-col items-center gap-2" style={fadeIn}>
-          <Show
-            when={!decrypting()}
-            fallback={<span class="text-muted text-xs">decrypting…</span>}
-          >
+          <Show when={!decrypting()} fallback={<span class="text-muted text-xs">decrypting…</span>}>
             <span
               class="text-accent font-medium tabular-nums"
               style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
@@ -212,18 +205,13 @@ export default function View() {
 
       <Show when={stage() === "meta"}>
         <div class="flex flex-col items-center gap-3" style={fadeIn}>
-          <span
-            class="text-muted"
-            style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-          >
+          <span class="text-muted" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
             {formatBytes(size())}
           </span>
           <button class={btnClass} style={btnStyle} onClick={handleView}>
             view
           </button>
-          <span class="text-muted text-xs">
-            {formatExpiry(expiresAt())} · burns after viewing
-          </span>
+          <span class="text-muted text-xs">{formatExpiry(expiresAt())} · burns after viewing</span>
         </div>
       </Show>
 
@@ -241,9 +229,7 @@ export default function View() {
           >
             <span class="text-text flex min-w-0 gap-1.5">
               <span class="truncate">{fileName()}</span>
-              <span class="text-muted shrink-0 font-medium">
-                {formatBytes(size())}
-              </span>
+              <span class="text-muted shrink-0 font-medium">{formatBytes(size())}</span>
             </span>
             <div class="flex shrink-0 items-center gap-2">
               <Show when={contentType() === "text"}>

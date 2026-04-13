@@ -11,10 +11,7 @@ self.onmessage = async (e: MessageEvent) => {
       self.postMessage({ ciphertext }, [ciphertext.buffer]);
     } else if (type === "decrypt") {
       const { ciphertext } = e.data;
-      const { fileName, fileData } = await decrypt(
-        new Uint8Array(ciphertext),
-        key,
-      );
+      const { fileName, fileData } = await decrypt(new Uint8Array(ciphertext), key);
       self.postMessage({ fileName, fileData }, [fileData.buffer]);
     }
   } catch (err: any) {
