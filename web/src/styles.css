@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: block;
+  src: url("/fonts/bricolage-grotesque.woff2") format("woff2-variations");
+}
+
 @theme {
   --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
-  --font-sans: "Bricolage Grotesque Variable", sans-serif;
+  --font-sans: "Bricolage Grotesque", sans-serif;
 
   --color-bg: var(--c-bg);
   --color-surface: var(--c-surface);
