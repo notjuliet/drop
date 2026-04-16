@@ -254,6 +254,17 @@ export default function Upload() {
     if (e.dataTransfer?.files[0]) setFile(e.dataTransfer.files[0]);
   };
 
+  const handlePaste = (e: ClipboardEvent) => {
+    if (view() !== "empty") return;
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    const f = e.clipboardData?.files[0];
+    if (f) {
+      e.preventDefault();
+      setFile(f);
+    }
+  };
+
   onMount(async () => {
     worker = new Worker(new URL("../lib/crypto.worker.ts", import.meta.url), {
       type: "module",
@@ -261,6 +272,7 @@ export default function Upload() {
     document.addEventListener("dragover", handleDragOver);
     document.addEventListener("dragleave", handleDragLeave);
     document.addEventListener("drop", handleDrop);
+    document.addEventListener("paste", handlePaste);
 
     try {
       const res = await fetch("/api/info");
@@ -280,6 +292,7 @@ export default function Upload() {
     document.removeEventListener("dragover", handleDragOver);
     document.removeEventListener("dragleave", handleDragLeave);
     document.removeEventListener("drop", handleDrop);
+    document.removeEventListener("paste", handlePaste);
     worker?.terminate();
     cancelRecording();
   });
