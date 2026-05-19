@@ -420,7 +420,7 @@ export default function View() {
         <div
           class={
             mode === "tile"
-              ? "text-muted h-full w-full overflow-hidden p-4 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap"
+              ? "text-muted h-full w-full overflow-hidden p-3 text-left font-mono text-[9px] leading-relaxed whitespace-pre"
               : "border-border max-h-[70dvh] w-full overflow-auto rounded border p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap"
           }
         >
