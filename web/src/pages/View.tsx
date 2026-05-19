@@ -17,6 +17,8 @@ import {
 
 const ghostClass =
   "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded px-2 py-1 text-sm transition-colors";
+const mutedBtnClass =
+  "bg-transparent hover:bg-muted/10 active:scale-95 border-border text-muted rounded-md border px-4 py-1.5 font-medium transition";
 
 const MODAL_ANIMATION_MS = 400;
 
@@ -62,7 +64,18 @@ function isAudioOnlyWebm(url: string): Promise<boolean> {
   });
 }
 
-type Stage = "loading" | "meta" | "decrypting" | "content" | "error";
+function parseHash(hash: string) {
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  const params = new URLSearchParams(raw);
+  const keyEncoded = params.get("key") ?? raw.split("&")[0] ?? "";
+
+  return {
+    keyEncoded,
+    sensitive: params.get("nsfw") === "true",
+  };
+}
+
+type Stage = "loading" | "meta" | "decrypting" | "sensitive" | "content" | "error";
 type ContentType = "text" | "image" | "video" | "audio" | "binary";
 type ViewItem = {
   name: string;
@@ -76,6 +89,7 @@ type ViewItem = {
 export default function View() {
   const parts = location.pathname.split("/").filter(Boolean);
   const id = parts[0] === "p" ? parts[1] : parts[0];
+  const link = parseHash(window.location.hash);
 
   const [stage, setStage] = createSignal<Stage>("loading");
   const [error, setError] = createSignal("");
@@ -95,6 +109,9 @@ export default function View() {
   const selectedItem = createMemo(() => {
     const index = selectedIndex();
     return index === null ? null : (items()[index] ?? null);
+  });
+  const sensitiveDetail = createMemo(() => {
+    return `${formatBytes(size())} · ${burnAfterRead() ? "burns after viewing" : "marked sensitive"}`;
   });
 
   let objectUrls: string[] = [];
@@ -121,16 +138,14 @@ export default function View() {
   });
 
   onMount(async () => {
-    const keyEncoded = window.location.hash.slice(1);
-
-    if (!id || !keyEncoded) {
+    if (!id || !link.keyEncoded) {
       setError("Invalid URL.");
       setStage("error");
       return;
     }
 
     try {
-      await importKey(keyEncoded);
+      await importKey(link.keyEncoded);
     } catch {
       setError("Invalid key.");
       setStage("error");
@@ -149,7 +164,9 @@ export default function View() {
     setExpiresAt(info.expiresAt);
     setBurnAfterRead(info.burnAfterRead);
 
-    if (info.burnAfterRead) {
+    if (link.sensitive) {
+      setStage("sensitive");
+    } else if (info.burnAfterRead) {
       setStage("meta");
     } else {
       handleView();
@@ -196,7 +213,7 @@ export default function View() {
           {
             type: "decrypt",
             ciphertext: buf,
-            keyEncoded: location.hash.slice(1),
+            keyEncoded: link.keyEncoded,
           },
           [buf],
         );
@@ -476,6 +493,26 @@ export default function View() {
       <Show when={stage() === "error"}>
         <div class="flex justify-center" style={fadeIn}>
           <span class="text-danger text-sm">{error()}</span>
+        </div>
+      </Show>
+
+      <Show when={stage() === "sensitive"}>
+        <div class="flex flex-col items-center gap-3 text-center" style={fadeIn}>
+          <span
+            class="text-danger font-medium"
+            style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
+          >
+            nsfw
+          </span>
+          <span class="text-muted text-xs">{sensitiveDetail()}</span>
+          <div class="flex items-center gap-3">
+            <button class={btnClass} style={btnStyle} onClick={handleView}>
+              view
+            </button>
+            <a href="/" class={mutedBtnClass} style={btnStyle}>
+              leave
+            </a>
+          </div>
         </div>
       </Show>
 

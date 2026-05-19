@@ -52,6 +52,26 @@ function formatTime(s: number) {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
+function CheckBox(props: { checked: boolean }) {
+  return (
+    <div
+      class={`flex size-4 items-center justify-center rounded border transition-colors ${props.checked ? "bg-accent border-accent" : "bg-surface border-border"}`}
+    >
+      <Show when={props.checked}>
+        <svg class="text-bg h-3 w-3" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M2 6l3 3 5-5"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </Show>
+    </div>
+  );
+}
+
 export default function Upload() {
   const [files, setFiles] = createSignal<File[]>([]);
   const [status, setStatus] = createSignal<Status>("idle");
@@ -60,6 +80,7 @@ export default function Upload() {
   const [result, setResult] = createSignal<UploadResult | null>(null);
   const [dragging, setDragging] = createSignal(false);
   const [burn, setBurn] = createSignal(false);
+  const [sensitive, setSensitive] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
   const [maxFileSize, setMaxFileSize] = createSignal(0);
   const [maxTtl, setMaxTtl] = createSignal("");
@@ -437,7 +458,7 @@ export default function Upload() {
       setResult({
         fileCount: selectedFiles.length,
         totalSize: totalSize(),
-        url: `${location.origin}/${res.id}#${encoded}`,
+        url: `${location.origin}/${res.id}#${encoded}${sensitive() ? "&nsfw=true" : ""}`,
       });
       removeFile();
     } catch (e: any) {
@@ -650,7 +671,7 @@ export default function Upload() {
                       </span>
                     </span>
                   </Show>
-                  <div class="flex items-center gap-4 text-xs sm:text-sm">
+                  <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs sm:text-sm">
                     <input
                       type="text"
                       value={expiryValue()}
@@ -666,22 +687,18 @@ export default function Upload() {
                         setBurn((b) => !b);
                       }}
                     >
-                      <div
-                        class={`flex size-4 items-center justify-center rounded border transition-colors ${burn() ? "bg-accent border-accent" : "bg-surface border-border"}`}
-                      >
-                        <Show when={burn()}>
-                          <svg class="text-bg h-3 w-3" viewBox="0 0 12 12" fill="none">
-                            <path
-                              d="M2 6l3 3 5-5"
-                              stroke="currentColor"
-                              stroke-width="1.5"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            />
-                          </svg>
-                        </Show>
-                      </div>
+                      <CheckBox checked={burn()} />
                       burn
+                    </button>
+                    <button
+                      class={`flex items-center gap-1.5 transition-colors select-none ${sensitive() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSensitive((s) => !s);
+                      }}
+                    >
+                      <CheckBox checked={sensitive()} />
+                      nsfw
                     </button>
                   </div>
                 </div>
