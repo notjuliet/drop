@@ -1,4 +1,4 @@
-import { createSignal, Show, onMount, onCleanup } from "solid-js";
+import { createSignal, Show, For, onMount, onCleanup, createMemo } from "solid-js";
 
 import { importKey } from "../lib/crypto";
 import { btnClass, btnStyle, fadeIn } from "../lib/ui";
@@ -17,6 +17,22 @@ import {
 
 const ghostClass =
   "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded px-2 py-1 text-sm transition-colors";
+
+const iconButtonClass =
+  "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded p-2 transition-colors";
+
+function CloseIcon() {
+  return (
+    <svg class="size-4" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="m4 4 8 8M12 4l-8 8"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+      />
+    </svg>
+  );
+}
 
 function isAudioOnlyWebm(url: string): Promise<boolean> {
   return new Promise((resolve) => {
@@ -40,6 +56,14 @@ function isAudioOnlyWebm(url: string): Promise<boolean> {
 
 type Stage = "loading" | "meta" | "decrypting" | "content" | "error";
 type ContentType = "text" | "image" | "video" | "audio" | "binary";
+type ViewItem = {
+  name: string;
+  size: number;
+  contentType: ContentType;
+  textContent?: string;
+  src?: string;
+  blob?: Blob;
+};
 
 export default function View() {
   const parts = location.pathname.split("/").filter(Boolean);
@@ -54,19 +78,29 @@ export default function View() {
   const [progress, setProgress] = createSignal(0);
   const [decrypting, setDecrypting] = createSignal(false);
 
-  const [contentType, setContentType] = createSignal<ContentType>("binary");
-  const [textContent, setTextContent] = createSignal("");
-  const [imageSrc, setImageSrc] = createSignal("");
-  const [mediaSrc, setMediaSrc] = createSignal("");
-  const [fileName, setFileName] = createSignal("");
-  const [copied, setCopied] = createSignal(false);
+  const [items, setItems] = createSignal<ViewItem[]>([]);
+  const [copiedItem, setCopiedItem] = createSignal<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = createSignal<number | null>(null);
+  const totalPlainSize = createMemo(() => items().reduce((sum, item) => sum + item.size, 0));
+  const selectedItem = createMemo(() => {
+    const index = selectedIndex();
+    return index === null ? null : (items()[index] ?? null);
+  });
 
-  let decryptedBlob: Blob | null = null;
+  let objectUrls: string[] = [];
   const worker = new Worker(new URL("../lib/crypto.worker.ts", import.meta.url), {
     type: "module",
   });
 
-  onCleanup(() => worker.terminate());
+  const clearObjectUrls = () => {
+    objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    objectUrls = [];
+  };
+
+  onCleanup(() => {
+    clearObjectUrls();
+    worker.terminate();
+  });
 
   onMount(async () => {
     const keyEncoded = window.location.hash.slice(1);
@@ -133,9 +167,8 @@ export default function View() {
         xhr.send();
       });
 
-      const { fileName: name, fileData } = await new Promise<{
-        fileName: string;
-        fileData: Uint8Array<ArrayBuffer>;
+      const { files } = await new Promise<{
+        files: { fileName: string; fileData: Uint8Array<ArrayBuffer> }[];
       }>((resolve, reject) => {
         worker.onmessage = (e) => {
           if (e.data.error) reject(new Error(e.data.error));
@@ -151,38 +184,63 @@ export default function View() {
         );
       });
 
-      const ext = getExt(name);
-      setFileName(name);
-
       if (burnAfterRead()) setBurned(true);
 
-      const mime = IMAGE_MIME[ext] || VIDEO_MIME[ext] || AUDIO_MIME[ext] || undefined;
-      if (mime) {
-        const blob = new Blob([fileData], { type: mime });
-        decryptedBlob = blob;
-        const url = URL.createObjectURL(blob);
-        if (IMAGE_EXTS.has(ext)) {
-          setImageSrc(url);
-          setContentType("image");
-        } else if (VIDEO_EXTS.has(ext)) {
-          setMediaSrc(url);
-          if (ext === "webm" && (await isAudioOnlyWebm(url))) {
-            setContentType("audio");
+      clearObjectUrls();
+      const nextItems: ViewItem[] = [];
+
+      for (const file of files) {
+        const ext = getExt(file.fileName);
+        const mime = IMAGE_MIME[ext] || VIDEO_MIME[ext] || AUDIO_MIME[ext] || undefined;
+
+        if (mime) {
+          const blob = new Blob([file.fileData], { type: mime });
+          const url = URL.createObjectURL(blob);
+          objectUrls.push(url);
+          if (IMAGE_EXTS.has(ext)) {
+            nextItems.push({
+              name: file.fileName,
+              size: file.fileData.byteLength,
+              contentType: "image",
+              src: url,
+              blob,
+            });
+          } else if (VIDEO_EXTS.has(ext)) {
+            nextItems.push({
+              name: file.fileName,
+              size: file.fileData.byteLength,
+              contentType: ext === "webm" && (await isAudioOnlyWebm(url)) ? "audio" : "video",
+              src: url,
+              blob,
+            });
           } else {
-            setContentType("video");
+            nextItems.push({
+              name: file.fileName,
+              size: file.fileData.byteLength,
+              contentType: "audio",
+              src: url,
+              blob,
+            });
           }
+        } else if (TEXT_EXTS.has(ext)) {
+          nextItems.push({
+            name: file.fileName,
+            size: file.fileData.byteLength,
+            contentType: "text",
+            textContent: new TextDecoder().decode(file.fileData),
+          });
         } else {
-          setMediaSrc(url);
-          setContentType("audio");
+          nextItems.push({
+            name: file.fileName,
+            size: file.fileData.byteLength,
+            contentType: "binary",
+            blob: new Blob([file.fileData]),
+          });
         }
-      } else if (TEXT_EXTS.has(ext)) {
-        setTextContent(new TextDecoder().decode(fileData));
-        setContentType("text");
-      } else {
-        decryptedBlob = new Blob([fileData]);
-        setContentType("binary");
       }
 
+      setItems(nextItems);
+      setSelectedIndex(null);
       setStage("content");
     } catch (e: any) {
       setError(e.message || "Failed to decrypt.");
@@ -190,19 +248,100 @@ export default function View() {
     }
   };
 
-  const copyText = () => {
-    navigator.clipboard.writeText(textContent());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copyText = (index: number, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedItem(index);
+    setTimeout(() => setCopiedItem(null), 1500);
   };
 
-  const saveFile = () => {
-    if (contentType() === "text") {
-      const blob = new Blob([textContent()], { type: "text/plain" });
-      triggerDownload(blob, fileName());
-    } else if (decryptedBlob) {
-      triggerDownload(decryptedBlob, fileName());
+  const blobForItem = (item: ViewItem) => {
+    if (item.contentType === "text") {
+      return new Blob([item.textContent ?? ""], { type: "text/plain" });
     }
+    return item.blob ?? null;
+  };
+
+  const saveFile = (item: ViewItem) => {
+    const blob = blobForItem(item);
+    if (blob) triggerDownload(blob, item.name);
+  };
+
+  const saveAll = () => {
+    items().forEach(saveFile);
+  };
+
+  const openItem = (index: number) => setSelectedIndex(index);
+  const closeItem = () => setSelectedIndex(null);
+
+  const handleTileKeyDown = (e: KeyboardEvent, index: number) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openItem(index);
+    }
+  };
+
+  const renderPreview = (item: ViewItem, mode: "tile" | "full" | "modal") => {
+    if (item.contentType === "image") {
+      return (
+        <img
+          src={item.src}
+          alt={item.name}
+          class={
+            mode === "tile"
+              ? "h-full w-full object-cover"
+              : mode === "modal"
+                ? "max-h-full max-w-full rounded object-contain"
+                : "max-h-[70dvh] w-fit max-w-full rounded object-contain"
+          }
+        />
+      );
+    }
+    if (item.contentType === "video") {
+      return (
+        <video
+          src={item.src}
+          controls={mode !== "tile"}
+          muted={mode === "tile"}
+          preload="metadata"
+          class={
+            mode === "tile"
+              ? "h-full w-full object-cover"
+              : mode === "modal"
+                ? "max-h-full max-w-full rounded object-contain"
+                : "max-h-[70dvh] w-fit max-w-full rounded object-contain"
+          }
+        />
+      );
+    }
+    if (item.contentType === "audio") {
+      return mode === "tile" ? (
+        <div class="text-muted flex h-full w-full items-center justify-center text-sm">audio</div>
+      ) : (
+        <audio src={item.src} controls class="w-full" />
+      );
+    }
+    if (item.contentType === "text") {
+      return (
+        <div
+          class={
+            mode === "tile"
+              ? "text-muted h-full w-full overflow-hidden p-4 text-left font-mono text-xs leading-relaxed whitespace-pre-wrap"
+              : "border-border max-h-[70dvh] w-full overflow-auto rounded border p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap"
+          }
+        >
+          {item.textContent}
+        </div>
+      );
+    }
+    return mode === "tile" ? (
+      <div class="text-muted flex h-full w-full items-center justify-center text-sm">file</div>
+    ) : (
+      <div class="flex justify-center py-10">
+        <button class={btnClass} style={btnStyle} onClick={() => saveFile(item)}>
+          download
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -247,62 +386,139 @@ export default function View() {
 
       <Show when={stage() === "content"}>
         <div class="mx-auto flex w-full flex-col gap-4" style={fadeIn}>
-          <div
-            class="flex items-center justify-between gap-4"
-            style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-          >
-            <span class="text-text flex min-w-0 gap-1.5">
-              <span class="truncate">{fileName()}</span>
-              <span class="text-muted shrink-0 font-medium">{formatBytes(size())}</span>
-            </span>
-            <div class="flex shrink-0 items-center gap-2">
-              <Show when={contentType() === "text"}>
-                <button class={ghostClass} onClick={copyText}>
-                  {copied() ? "copied!" : "copy"}
-                </button>
-              </Show>
-              <Show when={contentType() !== "binary"}>
-                <button class={ghostClass} onClick={saveFile}>
-                  save
-                </button>
-              </Show>
-            </div>
-          </div>
-
-          <Show when={contentType() === "image"}>
-            <div class="bg-surface border-border flex items-center justify-center rounded-lg border p-4">
-              <img
-                src={imageSrc()}
-                alt={fileName()}
-                class="max-h-[70vh] w-fit max-w-full rounded object-contain"
-              />
-            </div>
-          </Show>
-          <Show when={contentType() === "video"}>
-            <div class="bg-surface border-border flex items-center justify-center rounded-lg border p-4">
-              <video
-                src={mediaSrc()}
-                controls
-                class="max-h-[70vh] w-fit max-w-full rounded object-contain"
-              />
-            </div>
-          </Show>
-          <Show when={contentType() === "audio"}>
-            <div class="bg-surface border-border rounded-lg border p-4">
-              <audio src={mediaSrc()} controls class="w-full" />
-            </div>
-          </Show>
-          <Show when={contentType() === "text"}>
-            <div class="bg-surface border-border max-h-[70vh] w-full overflow-auto rounded-lg border p-4 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
-              {textContent()}
-            </div>
-          </Show>
-          <Show when={contentType() === "binary"}>
-            <div class="flex justify-center">
-              <button class={btnClass} style={btnStyle} onClick={saveFile}>
-                download
+          <Show when={items().length > 1}>
+            <div
+              class="flex items-center justify-between gap-4"
+              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+            >
+              <span class="text-text flex min-w-0 gap-1.5">
+                <span>{items().length} files</span>
+                <span class="text-muted shrink-0 font-medium">{formatBytes(totalPlainSize())}</span>
+              </span>
+              <button class={ghostClass} onClick={saveAll}>
+                save all
               </button>
             </div>
+          </Show>
+
+          <Show
+            when={items().length > 1}
+            fallback={
+              <For each={items()}>
+                {(item, index) => (
+                  <div class="bg-surface items-center border-border flex flex-col gap-3 rounded-lg border p-4">
+                    <div
+                      class="flex items-center w-full justify-between gap-4"
+                      style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                    >
+                      <span class="text-text flex min-w-0 gap-1.5">
+                        <span class="truncate">{item.name}</span>
+                        <span class="text-muted shrink-0 font-medium">
+                          {formatBytes(item.size)}
+                        </span>
+                      </span>
+                      <div class="flex shrink-0 items-center gap-2">
+                        <Show when={item.contentType === "text"}>
+                          <button
+                            class={ghostClass}
+                            onClick={() => copyText(index(), item.textContent ?? "")}
+                          >
+                            {copiedItem() === index() ? "copied!" : "copy"}
+                          </button>
+                        </Show>
+                        <Show when={item.contentType !== "binary"}>
+                          <button class={ghostClass} onClick={() => saveFile(item)}>
+                            save
+                          </button>
+                        </Show>
+                      </div>
+                    </div>
+
+                    {renderPreview(item, "full")}
+                  </div>
+                )}
+              </For>
+            }
+          >
+            <div class={`grid grid-cols-2 gap-2 ${items().length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <For each={items()}>
+                {(item, index) => (
+                  <div class="bg-surface border-border overflow-hidden rounded-lg border">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      class="bg-bg focus-visible:ring-accent aspect-4/3 cursor-zoom-in overflow-hidden transition-opacity outline-none hover:opacity-90 focus-visible:ring-2"
+                      onClick={() => openItem(index())}
+                      onKeyDown={(e) => handleTileKeyDown(e, index())}
+                    >
+                      {renderPreview(item, "tile")}
+                    </div>
+                    <div class="flex min-w-0 items-center justify-between gap-3 px-3 py-2">
+                      <button
+                        type="button"
+                        class="text-text min-w-0 truncate border-0 bg-transparent p-0 text-left text-sm font-medium"
+                        onClick={() => openItem(index())}
+                      >
+                        {item.name}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          <Show when={selectedItem()} keyed>
+            {(item) => (
+              <div
+                class="bg-bg/95 fixed inset-0 z-50 flex items-center justify-center p-4"
+                style={fadeIn}
+                onClick={closeItem}
+              >
+                <div
+                  class="bg-surface border-border flex max-h-[92dvh] w-full max-w-5xl flex-col gap-4 overflow-auto rounded-lg border p-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <span class="text-text flex min-w-0 gap-1.5 text-sm">
+                      <span class="truncate">{item.name}</span>
+                      <span class="text-muted shrink-0 font-medium">{formatBytes(item.size)}</span>
+                    </span>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <Show when={item.contentType === "text"}>
+                        <button
+                          class={ghostClass}
+                          onClick={() => copyText(selectedIndex() ?? -1, item.textContent ?? "")}
+                        >
+                          {copiedItem() === selectedIndex() ? "copied!" : "copy"}
+                        </button>
+                      </Show>
+                      <button class={ghostClass} onClick={() => saveFile(item)}>
+                        {item.contentType === "binary" ? "download" : "save"}
+                      </button>
+                      <button
+                        type="button"
+                        class="text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded p-1.5 transition-colors"
+                        aria-label="close preview"
+                        onClick={closeItem}
+                      >
+                        <CloseIcon />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    class={`flex min-h-0 items-center justify-center ${
+                      item.contentType === "image" || item.contentType === "video"
+                        ? "h-[50dvh] max-h-[70dvh]"
+                        : ""
+                    }`}
+                  >
+                    {renderPreview(item, "modal")}
+                  </div>
+                </div>
+              </div>
+            )}
           </Show>
 
           <div class="flex items-center justify-between">

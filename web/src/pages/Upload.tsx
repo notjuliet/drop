@@ -1,4 +1,4 @@
-import { createSignal, Show, onMount, onCleanup, createMemo, createEffect } from "solid-js";
+import { createSignal, Show, For, onMount, onCleanup, createMemo, createEffect } from "solid-js";
 
 import { generateKey } from "../lib/crypto";
 import { btnClass, btnStyle, fadeIn } from "../lib/ui";
@@ -22,6 +22,11 @@ function parseDuration(s: string): number | undefined {
 
 type Status = "idle" | "encrypting" | "uploading";
 type View = "result" | "uploading" | "file" | "empty" | "recording";
+type UploadResult = {
+  fileCount: number;
+  totalSize: number;
+  url: string;
+};
 
 const REC_MIMES = [
   "audio/mp4;codecs=mp4a.40.2",
@@ -48,11 +53,11 @@ function formatTime(s: number) {
 }
 
 export default function Upload() {
-  const [file, setFile] = createSignal<File | null>(null);
+  const [files, setFiles] = createSignal<File[]>([]);
   const [status, setStatus] = createSignal<Status>("idle");
   const [progress, setProgress] = createSignal(0);
   const [error, setError] = createSignal("");
-  const [resultUrl, setResultUrl] = createSignal("");
+  const [result, setResult] = createSignal<UploadResult | null>(null);
   const [dragging, setDragging] = createSignal(false);
   const [burn, setBurn] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
@@ -65,7 +70,47 @@ export default function Upload() {
   const [recLevel, setRecLevel] = createSignal(0);
   const [previewUrl, setPreviewUrl] = createSignal("");
 
+  const file = createMemo(() => files()[0] ?? null);
+  const selectedCount = createMemo(() => files().length);
+  const totalSize = createMemo(() => files().reduce((sum, f) => sum + f.size, 0));
+  const resultUrl = createMemo(() => result()?.url ?? "");
+  const bundleSize = createMemo(() => {
+    const selected = files();
+    if (selected.length === 0) return 0;
+    const encoder = new TextEncoder();
+    const payloadSize =
+      selected.length === 1
+        ? 10 + encoder.encode(selected[0].name || "file").length + selected[0].size
+        : 12 +
+          selected.reduce(
+            (sum, f) => sum + 10 + encoder.encode(f.name || "file").length + f.size,
+            0,
+          );
+    return Math.ceil(payloadSize / 4096) * 4096 + 16;
+  });
+  const selectionTooLarge = createMemo(() => {
+    const max = maxFileSize();
+    return !!max && bundleSize() > max;
+  });
+
+  const setFile = (next: File | null) => {
+    setFiles(next ? [next] : []);
+    if (next) {
+      setResult(null);
+      setError("");
+    }
+  };
+
+  const setPickedFiles = (picked: FileList | File[]) => {
+    const next = Array.from(picked);
+    if (next.length === 0) return;
+    setFiles(next);
+    setResult(null);
+    setError("");
+  };
+
   const previewKind = createMemo<"audio" | "video" | "image" | null>(() => {
+    if (selectedCount() !== 1) return null;
     const f = file();
     if (!f) return null;
     if (f.type.startsWith("audio/")) return "audio";
@@ -86,8 +131,9 @@ export default function Upload() {
     }
   });
 
-  let fileInput!: HTMLInputElement;
+  let fileInput: HTMLInputElement | undefined;
   let activeXhr: XMLHttpRequest | null = null;
+  let uploadCancelled = false;
   let worker: Worker | null = null;
   let mediaRecorder: MediaRecorder | null = null;
   let mediaStream: MediaStream | null = null;
@@ -119,9 +165,7 @@ export default function Upload() {
   };
 
   const tooLarge = createMemo(() => {
-    const f = file();
-    const max = maxFileSize();
-    return !!f && !!max && f.size > max;
+    return selectionTooLarge();
   });
 
   const expiryTooLong = createMemo(() => {
@@ -138,7 +182,7 @@ export default function Upload() {
     if (resultUrl()) return "result";
     if (status() !== "idle") return "uploading";
     if (recording()) return "recording";
-    if (file()) return "file";
+    if (selectedCount() > 0) return "file";
     return "empty";
   });
 
@@ -224,7 +268,9 @@ export default function Upload() {
   };
 
   const stopRecording = () => {
-    mediaRecorder?.state === "recording" && mediaRecorder.stop();
+    if (mediaRecorder?.state === "recording") {
+      mediaRecorder.stop();
+    }
   };
 
   const cancelRecording = () => {
@@ -251,17 +297,17 @@ export default function Upload() {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (e.dataTransfer?.files[0]) setFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer?.files.length) setPickedFiles(e.dataTransfer.files);
   };
 
   const handlePaste = (e: ClipboardEvent) => {
     if (view() !== "empty") return;
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-    const f = e.clipboardData?.files[0];
-    if (f) {
+    const pastedFiles = e.clipboardData?.files;
+    if (pastedFiles?.length) {
       e.preventDefault();
-      setFile(f);
+      setPickedFiles(pastedFiles);
     }
   };
 
@@ -298,12 +344,13 @@ export default function Upload() {
   });
 
   const removeFile = () => {
-    setFile(null);
+    setFiles([]);
     setError("");
-    fileInput.value = "";
+    if (fileInput) fileInput.value = "";
   };
 
   const cancelUpload = () => {
+    uploadCancelled = true;
     if (activeXhr) {
       activeXhr.abort();
       activeXhr = null;
@@ -314,17 +361,27 @@ export default function Upload() {
   };
 
   const handleUpload = async () => {
-    const f = file();
-    if (!f) return;
+    const selectedFiles = files();
+    if (selectedFiles.length === 0) return;
 
     setStatus("encrypting");
     setError("");
-    setResultUrl("");
+    setResult(null);
     setProgress(0);
+    uploadCancelled = false;
 
     try {
       const { encoded } = await generateKey();
-      const buffer = await f.arrayBuffer();
+      const fileBuffers: { fileName: string; fileBuffer: ArrayBuffer }[] = [];
+
+      for (const [index, f] of selectedFiles.entries()) {
+        fileBuffers.push({
+          fileName: f.name || `file-${index + 1}`,
+          fileBuffer: await f.arrayBuffer(),
+        });
+        if (uploadCancelled) throw new Error("Upload cancelled");
+      }
+
       const ciphertext = await new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
         worker!.onmessage = (e) => {
           if (e.data.error) reject(new Error(e.data.error));
@@ -332,14 +389,14 @@ export default function Upload() {
         };
         worker!.postMessage(
           {
-            type: "encrypt",
-            fileName: f.name || "file",
-            fileBuffer: buffer,
+            type: "encryptFiles",
+            files: fileBuffers,
             keyEncoded: encoded,
           },
-          [buffer],
+          fileBuffers.map((f) => f.fileBuffer),
         );
       });
+      if (uploadCancelled) throw new Error("Upload cancelled");
 
       const formData = new FormData();
       formData.append("file", new Blob([ciphertext]));
@@ -373,14 +430,18 @@ export default function Upload() {
         };
 
         xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.onabort = () => reject(new Error("Upload cancelled"));
         xhr.send(formData);
       });
 
-      const url = `${location.origin}/${res.id}#${encoded}`;
-      setResultUrl(url);
+      setResult({
+        fileCount: selectedFiles.length,
+        totalSize: totalSize(),
+        url: `${location.origin}/${res.id}#${encoded}`,
+      });
       removeFile();
     } catch (e: any) {
-      setError(e.message);
+      if (!uploadCancelled) setError(e.message);
     } finally {
       activeXhr = null;
       setStatus("idle");
@@ -403,7 +464,7 @@ export default function Upload() {
     <>
       <div
         class="group relative mx-auto flex aspect-square w-[90vw] max-w-125 items-center justify-center sm:w-[80vw]"
-        onClick={() => view() === "empty" && fileInput.click()}
+        onClick={() => view() === "empty" && fileInput?.click()}
       >
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} class="absolute inset-0 h-full w-full">
           <defs>
@@ -467,7 +528,9 @@ export default function Upload() {
             <Show when={view() === "result"}>
               <div class="flex flex-col items-center gap-3" style={fadeIn}>
                 <span class="text-muted" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
-                  expires in {expiryValue()}
+                  {(result()?.fileCount ?? 0) > 1
+                    ? `${result()!.fileCount} files expire in ${expiryValue()}`
+                    : `expires in ${expiryValue()}`}
                 </span>
                 <button class={btnClass} style={btnStyle} onClick={copyLink}>
                   {copied() ? "copied!" : "copy link"}
@@ -528,22 +591,65 @@ export default function Upload() {
                   />
                 </Show>
                 <div class="flex flex-col items-center gap-2">
-                  <span
-                    class="text-text flex gap-1.5 truncate"
-                    style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
+                  <Show
+                    when={selectedCount() === 1}
+                    fallback={
+                      <div
+                        class="flex w-full flex-col items-center gap-2"
+                        style={{ "max-width": "clamp(170px, 48vw, 320px)" }}
+                      >
+                        <span
+                          class="text-text flex gap-1.5"
+                          style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                        >
+                          <span>{selectedCount()} files</span>
+                          <span
+                            class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                          >
+                            {tooLarge()
+                              ? `${formatBytes(bundleSize())} / ${formatBytes(maxFileSize())}`
+                              : formatBytes(totalSize())}
+                          </span>
+                        </span>
+                        <div
+                          class="w-full overflow-auto pr-1 text-left"
+                          style={{ "max-height": "5.25rem" }}
+                        >
+                          <For each={files()}>
+                            {(f) => (
+                              <div class="flex items-center gap-2 text-[10px] leading-5 sm:text-xs">
+                                <span class="text-text min-w-0 flex-1 truncate">
+                                  {f.name || "file"}
+                                </span>
+                                <span
+                                  class={`shrink-0 font-medium ${maxFileSize() && f.size > maxFileSize() ? "text-danger" : "text-muted"}`}
+                                >
+                                  {formatBytes(f.size)}
+                                </span>
+                              </div>
+                            )}
+                          </For>
+                        </div>
+                      </div>
+                    }
                   >
-                    <span class="truncate" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
-                      {file()!.name}
-                    </span>
                     <span
-                      class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
-                      style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                      class="text-text flex gap-1.5 truncate"
+                      style={{ "max-width": "clamp(120px, 40vw, 300px)" }}
                     >
-                      {tooLarge()
-                        ? `${formatBytes(file()!.size)} / ${formatBytes(maxFileSize())}`
-                        : formatBytes(file()!.size)}
+                      <span class="truncate" style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}>
+                        {file()!.name}
+                      </span>
+                      <span
+                        class={`shrink-0 font-medium ${tooLarge() ? "text-danger" : "text-muted"}`}
+                        style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
+                      >
+                        {tooLarge()
+                          ? `${formatBytes(bundleSize())} / ${formatBytes(maxFileSize())}`
+                          : formatBytes(file()!.size)}
+                      </span>
                     </span>
-                  </span>
+                  </Show>
                   <div class="flex items-center gap-4 text-xs sm:text-sm">
                     <input
                       type="text"
@@ -630,14 +736,14 @@ export default function Upload() {
                   class="text-muted font-medium"
                   style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
                 >
-                  drop a file, or
+                  drop files, or
                 </span>
                 <button
                   class={btnClass}
                   style={btnStyle}
                   onClick={(e) => {
                     e.stopPropagation();
-                    fileInput.click();
+                    fileInput?.click();
                   }}
                 >
                   browse
@@ -658,7 +764,7 @@ export default function Upload() {
                 </Show>
                 <Show when={maxFileSize()}>
                   <span class="text-muted text-[10px] sm:text-xs">
-                    up to {formatBytes(maxFileSize())}
+                    up to {formatBytes(maxFileSize())} total
                   </span>
                 </Show>
               </div>
@@ -668,10 +774,13 @@ export default function Upload() {
 
         <input
           type="file"
-          ref={fileInput!}
+          ref={(el) => {
+            fileInput = el;
+          }}
           class="hidden"
+          multiple
           onChange={() => {
-            if (fileInput.files?.[0]) setFile(fileInput.files[0]);
+            if (fileInput?.files?.length) setPickedFiles(fileInput.files);
           }}
         />
       </div>
@@ -681,7 +790,7 @@ export default function Upload() {
           <button
             class={ghostClass}
             onClick={() => {
-              setResultUrl("");
+              setResult(null);
               removeFile();
             }}
           >

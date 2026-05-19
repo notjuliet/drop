@@ -1,4 +1,5 @@
 import { render } from "solid-js/web";
+
 import App from "./App";
 import Upload from "./pages/Upload";
 import View from "./pages/View";
