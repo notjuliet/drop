@@ -294,6 +294,7 @@ export default function View() {
   const openItem = (index: number) => {
     clearPreviewCloseTimer();
     setPreviewClosing(false);
+    setCopiedItem(null);
     setSelectedIndex(index);
   };
 
@@ -307,12 +308,48 @@ export default function View() {
     }, MODAL_ANIMATION_MS);
   };
 
+  const showAdjacentItem = (direction: -1 | 1) => {
+    const index = selectedIndex();
+    if (index === null) return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= items().length) return;
+    openItem(nextIndex);
+  };
+
   const handleTileKeyDown = (e: KeyboardEvent, index: number) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       openItem(index);
     }
   };
+
+  const handlePreviewKeyDown = (e: KeyboardEvent) => {
+    if (selectedIndex() === null || previewClosing()) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeItem();
+      return;
+    }
+
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      showAdjacentItem(-1);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      showAdjacentItem(1);
+    }
+  };
+
+  onMount(() => {
+    document.addEventListener("keydown", handlePreviewKeyDown);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener("keydown", handlePreviewKeyDown);
+  });
 
   const setVideoDuration = (src: string | undefined, duration: number) => {
     if (!src || !Number.isFinite(duration) || duration <= 0) return;
@@ -528,7 +565,7 @@ export default function View() {
             </div>
           </Show>
 
-          <Show when={selectedItem()} keyed>
+          <Show when={selectedItem()}>
             {(item) => (
               <div
                 class="bg-bg/95 fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -541,20 +578,22 @@ export default function View() {
                 >
                   <div class="flex items-center justify-between gap-4">
                     <span class="text-text flex min-w-0 gap-1.5 text-sm">
-                      <span class="truncate">{item.name}</span>
-                      <span class="text-muted shrink-0 font-medium">{formatBytes(item.size)}</span>
+                      <span class="truncate">{item().name}</span>
+                      <span class="text-muted shrink-0 font-medium">
+                        {formatBytes(item().size)}
+                      </span>
                     </span>
                     <div class="flex shrink-0 items-center gap-2">
-                      <Show when={item.contentType === "text"}>
+                      <Show when={item().contentType === "text"}>
                         <button
                           class={ghostClass}
-                          onClick={() => copyText(selectedIndex() ?? -1, item.textContent ?? "")}
+                          onClick={() => copyText(selectedIndex() ?? -1, item().textContent ?? "")}
                         >
                           {copiedItem() === selectedIndex() ? "copied!" : "copy"}
                         </button>
                       </Show>
-                      <button class={ghostClass} onClick={() => saveFile(item)}>
-                        {item.contentType === "binary" ? "download" : "save"}
+                      <button class={ghostClass} onClick={() => saveFile(item())}>
+                        {item().contentType === "binary" ? "download" : "save"}
                       </button>
                       <button
                         type="button"
@@ -569,12 +608,12 @@ export default function View() {
 
                   <div
                     class={`flex min-h-0 items-center justify-center ${
-                      item.contentType === "image" || item.contentType === "video"
+                      item().contentType === "image" || item().contentType === "video"
                         ? "h-[50dvh] max-h-[70dvh]"
                         : ""
                     }`}
                   >
-                    {renderPreview(item, "modal")}
+                    {renderPreview(item(), "modal")}
                   </div>
                 </div>
               </div>
