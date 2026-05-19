@@ -609,7 +609,7 @@ export default function View() {
                   <div
                     class={`flex min-h-0 items-center justify-center ${
                       item().contentType === "image" || item().contentType === "video"
-                        ? "h-[50dvh] max-h-[70dvh]"
+                        ? "h-[70dvh]"
                         : ""
                     }`}
                   >
