@@ -33,6 +33,15 @@ function CloseIcon() {
   );
 }
 
+function formatDuration(seconds: number) {
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function isAudioOnlyWebm(url: string): Promise<boolean> {
   return new Promise((resolve) => {
     const v = document.createElement("video");
@@ -81,6 +90,7 @@ export default function View() {
   const [copiedItem, setCopiedItem] = createSignal<number | null>(null);
   const [selectedIndex, setSelectedIndex] = createSignal<number | null>(null);
   const [previewClosing, setPreviewClosing] = createSignal(false);
+  const [videoDurations, setVideoDurations] = createSignal<Record<string, number>>({});
   const totalPlainSize = createMemo(() => items().reduce((sum, item) => sum + item.size, 0));
   const selectedItem = createMemo(() => {
     const index = selectedIndex();
@@ -195,6 +205,7 @@ export default function View() {
       if (burnAfterRead()) setBurned(true);
 
       clearObjectUrls();
+      setVideoDurations({});
       const nextItems: ViewItem[] = [];
 
       for (const file of files) {
@@ -303,6 +314,15 @@ export default function View() {
     }
   };
 
+  const setVideoDuration = (src: string | undefined, duration: number) => {
+    if (!src || !Number.isFinite(duration) || duration <= 0) return;
+    setVideoDurations((current) =>
+      current[src] === duration ? current : { ...current, [src]: duration },
+    );
+  };
+
+  const videoDuration = (item: ViewItem) => (item.src ? videoDurations()[item.src] : undefined);
+
   const renderPreview = (item: ViewItem, mode: "tile" | "full" | "modal") => {
     if (item.contentType === "image") {
       return (
@@ -320,12 +340,13 @@ export default function View() {
       );
     }
     if (item.contentType === "video") {
-      return (
+      const video = (
         <video
           src={item.src}
           controls={mode !== "tile"}
           muted={mode === "tile"}
           preload="metadata"
+          onLoadedMetadata={(e) => setVideoDuration(item.src, e.currentTarget.duration)}
           class={
             mode === "tile"
               ? "h-full w-full object-cover"
@@ -334,6 +355,20 @@ export default function View() {
                 : "max-h-[70dvh] w-fit max-w-full rounded object-contain"
           }
         />
+      );
+      return mode === "tile" ? (
+        <div class="relative h-full w-full">
+          {video}
+          <Show when={videoDuration(item)}>
+            {(duration) => (
+              <span class="bg-bg/80 text-text absolute bottom-2 left-2 rounded px-1.5 py-0.5 text-[11px] font-medium tabular-nums backdrop-blur-sm">
+                {formatDuration(duration())}
+              </span>
+            )}
+          </Show>
+        </div>
+      ) : (
+        video
       );
     }
     if (item.contentType === "audio") {
