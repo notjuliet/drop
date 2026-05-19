@@ -467,13 +467,8 @@ export default function View() {
       <Show when={stage() === "decrypting"}>
         <div class="flex flex-col items-center gap-2" style={fadeIn}>
           <Show when={!decrypting()} fallback={<span class="text-muted text-xs">decrypting…</span>}>
-            <span
-              class="text-accent font-medium tabular-nums"
-              style={{ "font-size": "clamp(1.5rem, 5vw, 2.5rem)" }}
-            >
-              {progress()}%
-            </span>
-            <span class="text-muted text-xs">downloading…</span>
+            <span class="text-accent text-2xl font-medium tabular-nums">{progress()}%</span>
+            <span class="text-muted text-sm">downloading…</span>
           </Show>
         </div>
       </Show>
@@ -519,10 +514,7 @@ export default function View() {
       <Show when={stage() === "content"}>
         <div class="mx-auto flex w-full flex-col gap-4" style={fadeIn}>
           <Show when={items().length > 1}>
-            <div
-              class="flex items-center justify-between gap-4"
-              style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
-            >
+            <div class="flex items-center justify-between gap-4">
               <span class="text-text flex min-w-0 gap-1.5">
                 <span>{items().length} files</span>
                 <span class="text-muted shrink-0 font-medium">{formatBytes(totalPlainSize())}</span>
