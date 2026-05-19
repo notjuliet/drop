@@ -5,8 +5,10 @@ A minimal file sharing app with zero-knowledge storage.
 ## Features
 
 - Client-side encryption (AES-256-GCM)
+- Multiple files upload
 - Configurable file expiry
 - Burn after read
+- Optional sensitive-content warning
 - Preview for images, video, audio, and text
 
 ## Running
