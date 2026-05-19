@@ -1,7 +1,7 @@
 import { createSignal, Show, For, onMount, onCleanup, createMemo } from "solid-js";
 
 import { importKey } from "../lib/crypto";
-import { btnClass, btnStyle, fadeIn } from "../lib/ui";
+import { btnClass, btnStyle, fadeIn, fadeOut } from "../lib/ui";
 import {
   formatBytes,
   formatExpiry,
@@ -18,8 +18,7 @@ import {
 const ghostClass =
   "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded px-2 py-1 text-sm transition-colors";
 
-const iconButtonClass =
-  "text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded p-2 transition-colors";
+const MODAL_ANIMATION_MS = 400;
 
 function CloseIcon() {
   return (
@@ -81,6 +80,7 @@ export default function View() {
   const [items, setItems] = createSignal<ViewItem[]>([]);
   const [copiedItem, setCopiedItem] = createSignal<number | null>(null);
   const [selectedIndex, setSelectedIndex] = createSignal<number | null>(null);
+  const [previewClosing, setPreviewClosing] = createSignal(false);
   const totalPlainSize = createMemo(() => items().reduce((sum, item) => sum + item.size, 0));
   const selectedItem = createMemo(() => {
     const index = selectedIndex();
@@ -88,9 +88,16 @@ export default function View() {
   });
 
   let objectUrls: string[] = [];
+  let previewCloseTimer: number | null = null;
   const worker = new Worker(new URL("../lib/crypto.worker.ts", import.meta.url), {
     type: "module",
   });
+
+  const clearPreviewCloseTimer = () => {
+    if (previewCloseTimer === null) return;
+    clearTimeout(previewCloseTimer);
+    previewCloseTimer = null;
+  };
 
   const clearObjectUrls = () => {
     objectUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -98,6 +105,7 @@ export default function View() {
   };
 
   onCleanup(() => {
+    clearPreviewCloseTimer();
     clearObjectUrls();
     worker.terminate();
   });
@@ -240,6 +248,8 @@ export default function View() {
       }
 
       setItems(nextItems);
+      clearPreviewCloseTimer();
+      setPreviewClosing(false);
       setSelectedIndex(null);
       setStage("content");
     } catch (e: any) {
@@ -270,8 +280,21 @@ export default function View() {
     items().forEach(saveFile);
   };
 
-  const openItem = (index: number) => setSelectedIndex(index);
-  const closeItem = () => setSelectedIndex(null);
+  const openItem = (index: number) => {
+    clearPreviewCloseTimer();
+    setPreviewClosing(false);
+    setSelectedIndex(index);
+  };
+
+  const closeItem = () => {
+    if (selectedIndex() === null || previewClosing()) return;
+    setPreviewClosing(true);
+    previewCloseTimer = window.setTimeout(() => {
+      setSelectedIndex(null);
+      setPreviewClosing(false);
+      previewCloseTimer = null;
+    }, MODAL_ANIMATION_MS);
+  };
 
   const handleTileKeyDown = (e: KeyboardEvent, index: number) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -406,9 +429,9 @@ export default function View() {
             fallback={
               <For each={items()}>
                 {(item, index) => (
-                  <div class="bg-surface items-center border-border flex flex-col gap-3 rounded-lg border p-4">
+                  <div class="bg-surface border-border flex flex-col items-center gap-3 rounded-lg border p-4">
                     <div
-                      class="flex items-center w-full justify-between gap-4"
+                      class="flex w-full items-center justify-between gap-4"
                       style={{ "font-size": "clamp(0.75rem, 2vw, 1rem)" }}
                     >
                       <span class="text-text flex min-w-0 gap-1.5">
@@ -440,7 +463,9 @@ export default function View() {
               </For>
             }
           >
-            <div class={`grid grid-cols-2 gap-2 ${items().length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div
+              class={`grid grid-cols-2 gap-2 ${items().length > 2 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+            >
               <For each={items()}>
                 {(item, index) => (
                   <div class="bg-surface border-border overflow-hidden rounded-lg border">
@@ -472,7 +497,7 @@ export default function View() {
             {(item) => (
               <div
                 class="bg-bg/95 fixed inset-0 z-50 flex items-center justify-center p-4"
-                style={fadeIn}
+                style={previewClosing() ? fadeOut : fadeIn}
                 onClick={closeItem}
               >
                 <div
@@ -498,7 +523,7 @@ export default function View() {
                       </button>
                       <button
                         type="button"
-                        class="text-muted hover:text-accent hover:border-accent border border-border bg-transparent rounded p-1.5 transition-colors"
+                        class="text-muted hover:text-accent hover:border-accent border-border rounded border bg-transparent p-1.5 transition-colors"
                         aria-label="close preview"
                         onClick={closeItem}
                       >

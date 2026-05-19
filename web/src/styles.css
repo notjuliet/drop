@@ -46,6 +46,17 @@
   }
 }
 
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --c-bg: #100c09;
