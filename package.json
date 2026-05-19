@@ -6,7 +6,10 @@
     "install:all": "bun install && bun install --cwd web",
     "dev": "bun run install:all && bun run --cwd web dev & bun run --hot src/index.ts",
     "build": "bun run --cwd web build",
-    "start": "bun run install:all && bun run build && bun run src/index.ts"
+    "start": "bun run install:all && bun run build && bun run src/index.ts",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "typecheck": "bunx tsc --noEmit && bunx tsc --noEmit --project web/tsconfig.json"
   },
   "dependencies": {
     "hono": "^4.12.19"
