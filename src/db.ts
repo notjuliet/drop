@@ -57,13 +57,17 @@ export function getFile(id: string) {
   // this deletes and returns it in one step, preventing double-reads
   const burned = burnStmt.get(id);
   if (burned) {
-    if (burned.expires_at <= Math.floor(Date.now() / 1000)) return null;
+    if (burned.expires_at <= Math.floor(Date.now() / 1000)) {
+      unlinkFile(id);
+      return null;
+    }
     return burned;
   }
   const row = selectStmt.get(id);
   if (!row) return null;
   if (row.expires_at <= Math.floor(Date.now() / 1000)) {
     deleteStmt.run(id);
+    unlinkFile(id);
     return null;
   }
   return row;

@@ -126,13 +126,27 @@ describe("file database", () => {
   test("treats expired rows as unavailable and cleans up expired files", async () => {
     const now = Math.floor(Date.now() / 1000);
     const lookupId = `expired-lookup-${crypto.randomUUID()}`;
+    const getId = `expired-get-${crypto.randomUUID()}`;
+    const burnedId = `expired-burn-${crypto.randomUUID()}`;
     const cleanupId = `expired-cleanup-${crypto.randomUUID()}`;
+    const getPath = join(dataDir, "files", getId);
+    const burnedPath = join(dataDir, "files", burnedId);
     const cleanupPath = join(dataDir, "files", cleanupId);
 
     createFile(lookupId, now - 1, false);
     expect(peekFile(lookupId)).toBeNull();
     expect(getFile(lookupId)).toBeNull();
     expect(peekFile(lookupId)).toBeNull();
+
+    await Bun.write(getPath, "stale");
+    createFile(getId, now - 1, false);
+    expect(getFile(getId)).toBeNull();
+    expect(existsSync(getPath)).toBe(false);
+
+    await Bun.write(burnedPath, "stale");
+    createFile(burnedId, now - 1, true);
+    expect(getFile(burnedId)).toBeNull();
+    expect(existsSync(burnedPath)).toBe(false);
 
     await Bun.write(cleanupPath, "stale");
     createFile(cleanupId, now - 1, false);
