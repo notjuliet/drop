@@ -11,9 +11,11 @@ const DURATION_UNITS: Record<string, number> = {
 };
 
 function parseDuration(s: string): number | undefined {
-  const n = parseInt(s);
-  const mult = DURATION_UNITS[s.slice(-1)];
-  if (isNaN(n) || mult === undefined) return undefined;
+  const match = s.trim().match(/^(\d+)([smhd])$/);
+  if (!match) return undefined;
+  const n = Number(match[1]!);
+  const mult = DURATION_UNITS[match[2]!];
+  if (!Number.isSafeInteger(n) || n <= 0 || mult === undefined) return undefined;
   return n * mult;
 }
 

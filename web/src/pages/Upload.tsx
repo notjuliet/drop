@@ -15,9 +15,11 @@ const DURATION_UNITS: Record<string, number> = {
   d: 86400,
 };
 function parseDuration(s: string): number | undefined {
-  const n = parseInt(s);
-  const mult = DURATION_UNITS[s.trim().slice(-1)];
-  if (isNaN(n) || mult === undefined) return undefined;
+  const match = s.trim().match(/^(\d+)([smhd])$/);
+  if (!match) return undefined;
+  const n = Number(match[1]!);
+  const mult = DURATION_UNITS[match[2]!];
+  if (!Number.isSafeInteger(n) || n <= 0 || mult === undefined) return undefined;
   return n * mult;
 }
 
@@ -190,14 +192,16 @@ export default function Upload() {
     return selectionTooLarge();
   });
 
-  const expiryTooLong = createMemo(() => {
-    const val = expiryValue();
+  const expiryError = createMemo(() => {
+    const val = expiryValue().trim();
     const max = maxTtl();
-    if (!val || !max) return false;
+    if (!val) return "";
     const valSec = parseDuration(val);
+    if (valSec === undefined) return "try 30m, 24h, or 7d";
+    if (!max) return "";
     const maxSec = parseDuration(max);
-    if (valSec === undefined || maxSec === undefined) return false;
-    return valSec > maxSec;
+    if (maxSec === undefined) return "";
+    return valSec > maxSec ? `max expiry ${max}` : "";
   });
 
   const view = createMemo<View>(() => {
@@ -669,41 +673,57 @@ export default function Upload() {
                       </span>
                     </span>
                   </Show>
-                  <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs sm:text-sm">
-                    <input
-                      type="text"
-                      value={expiryValue()}
-                      placeholder={maxTtl() || "7d"}
-                      onInput={(e) => setExpiryValue(e.currentTarget.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      class={`text-accent w-14 border-b bg-transparent text-center font-medium transition-colors outline-none ${expiryTooLong() ? "border-danger" : "border-border focus:border-accent"}`}
-                    />
-                    <button
-                      class={`flex items-center gap-1.5 transition-colors select-none ${burn() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBurn((b) => !b);
-                      }}
-                    >
-                      <CheckBox checked={burn()} />
-                      burn
-                    </button>
-                    <button
-                      class={`flex items-center gap-1.5 transition-colors select-none ${sensitive() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSensitive((s) => !s);
-                      }}
-                    >
-                      <CheckBox checked={sensitive()} />
-                      nsfw
-                    </button>
+                  <div class="flex flex-col items-center gap-1 text-xs sm:text-sm">
+                    <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+                      <span class="relative inline-flex justify-center">
+                        <input
+                          type="text"
+                          aria-label="expiry"
+                          aria-describedby={expiryError() ? "expiry-error" : undefined}
+                          aria-invalid={!!expiryError()}
+                          value={expiryValue()}
+                          placeholder={maxTtl() || "7d"}
+                          onInput={(e) => setExpiryValue(e.currentTarget.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          class={`text-accent w-14 border-b bg-transparent text-center font-medium transition-colors outline-none ${expiryError() ? "border-danger" : "border-border focus:border-accent"}`}
+                        />
+                        <Show when={expiryError()}>
+                          <span
+                            id="expiry-error"
+                            role="tooltip"
+                            class="bg-bg text-danger border-danger/30 absolute top-full left-1/2 z-10 mt-2 w-max max-w-36 -translate-x-1/2 rounded border px-2 py-1 text-center text-[10px] leading-tight shadow-sm sm:text-xs"
+                          >
+                            {expiryError()}
+                          </span>
+                        </Show>
+                      </span>
+                      <button
+                        class={`flex items-center gap-1.5 transition-colors select-none ${burn() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBurn((b) => !b);
+                        }}
+                      >
+                        <CheckBox checked={burn()} />
+                        burn
+                      </button>
+                      <button
+                        class={`flex items-center gap-1.5 transition-colors select-none ${sensitive() ? "text-accent" : "text-muted hover:text-accent-hover"}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSensitive((s) => !s);
+                        }}
+                      >
+                        <CheckBox checked={sensitive()} />
+                        nsfw
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <button
                   class={`${btnClass} disabled:cursor-not-allowed disabled:opacity-40`}
                   style={btnStyle}
-                  disabled={tooLarge() || expiryTooLong()}
+                  disabled={tooLarge() || !!expiryError()}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleUpload();
@@ -779,7 +799,7 @@ export default function Upload() {
                 </Show>
                 <Show when={maxFileSize()}>
                   <span class="text-muted text-[10px] sm:text-xs">
-                    up to {formatBytes(maxFileSize())} total
+                    up to {formatBytes(maxFileSize())}
                   </span>
                 </Show>
               </div>

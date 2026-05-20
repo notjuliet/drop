@@ -102,6 +102,15 @@ describe("file route", () => {
       error: "Invalid lifetime. Use a duration like 30m, 24h, 7d",
     });
 
+    const looseResponse = await fileRoute.request("/", {
+      method: "POST",
+      body: uploadForm("hello", { expiresIn: "1.5h" }),
+    });
+    expect(looseResponse.status).toBe(400);
+    expect(await looseResponse.json()).toEqual({
+      error: "Invalid lifetime. Use a duration like 30m, 24h, 7d",
+    });
+
     const excessiveResponse = await fileRoute.request("/", {
       method: "POST",
       body: uploadForm("hello", { expiresIn: "2h" }),
