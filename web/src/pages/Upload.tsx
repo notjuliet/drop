@@ -1,6 +1,7 @@
 import { createSignal, Show, For, onMount, onCleanup, createMemo, createEffect } from "solid-js";
 
 import { generateKey } from "../lib/crypto";
+import { prepareFileForUpload } from "../lib/exif";
 import { btnClass, btnStyle, fadeIn } from "../lib/ui";
 import { formatBytes } from "../lib/utils";
 
@@ -396,10 +397,7 @@ export default function Upload() {
       const fileBuffers: { fileName: string; fileBuffer: ArrayBuffer }[] = [];
 
       for (const [index, f] of selectedFiles.entries()) {
-        fileBuffers.push({
-          fileName: f.name || `file-${index + 1}`,
-          fileBuffer: await f.arrayBuffer(),
-        });
+        fileBuffers.push(await prepareFileForUpload(f, index));
         if (uploadCancelled) throw new Error("Upload cancelled");
       }
 
