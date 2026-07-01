@@ -11,7 +11,6 @@ stdenv.mkDerivation {
     fileset = lib.fileset.unions [
       ../package.json
       ../bun.lock
-      ../.npmrc
     ];
   };
 

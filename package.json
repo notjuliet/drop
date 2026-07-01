@@ -14,7 +14,6 @@
     "check": "bun run typecheck && bun run format:check && bun run test"
   },
   "dependencies": {
-    "@mary/exif-rm": "npm:@jsr/mary__exif-rm",
     "solid-js": "^1.9.13"
   },
   "devDependencies": {
