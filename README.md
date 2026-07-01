@@ -17,6 +17,8 @@ Requires [Bun](https://bun.sh).
 See `.env.example` for configuration.
 
 ```sh
+bun install
+bun run build
 bun start
 ```
 

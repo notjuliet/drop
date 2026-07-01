@@ -102,9 +102,10 @@ export default function Upload() {
     const selected = files();
     if (selected.length === 0) return 0;
     const encoder = new TextEncoder();
+    const first = selected[0]!;
     const payloadSize =
       selected.length === 1
-        ? 10 + encoder.encode(selected[0].name || "file").length + selected[0].size
+        ? 10 + encoder.encode(first.name || "file").length + first.size
         : 12 +
           selected.reduce(
             (sum, f) => sum + 10 + encoder.encode(f.name || "file").length + f.size,
@@ -258,7 +259,7 @@ export default function Upload() {
         analyser.getByteTimeDomainData(buf);
         let sum = 0;
         for (let i = 0; i < buf.length; i++) {
-          const v = (buf[i] - 128) / 128;
+          const v = (buf[i]! - 128) / 128;
           sum += v * v;
         }
         const target = Math.min(1, Math.sqrt(sum / buf.length) * 5);

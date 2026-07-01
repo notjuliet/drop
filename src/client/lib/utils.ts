@@ -64,7 +64,7 @@ export const IMAGE_MIME: Record<string, string> = {
 
 export function getExt(name: string): string {
   const parts = name.split(".");
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
+  return parts.length > 1 ? parts[parts.length - 1]!.toLowerCase() : "";
 }
 
 export function formatBytes(n: number): string {

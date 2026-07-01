@@ -8,15 +8,15 @@ process.env.DATA_DIR = dataDir;
 process.env.MAX_FILE_SIZE = "64";
 process.env.MAX_TTL = "1h";
 
-const { default: fileRoute } = await import("../src/file.ts");
-const { cleanExpired, createFile, getFile, peekFile } = await import("../src/db.ts");
+const { downloadFile, getFileInfo, uploadFile } = await import("../src/server/file.ts");
+const { cleanExpired, createFile, getFile, peekFile } = await import("../src/server/db.ts");
 
 afterAll(() => {
   rmSync(dataDir, { recursive: true, force: true });
 });
 
 function uploadForm(
-  contents: string | Uint8Array,
+  contents: string | Uint8Array<ArrayBuffer>,
   options: { expiresIn?: string; burnAfterRead?: boolean; name?: string } = {},
 ) {
   const form = new FormData();
@@ -29,10 +29,12 @@ function uploadForm(
 }
 
 async function upload(contents: string, options: { burnAfterRead?: boolean } = {}) {
-  const response = await fileRoute.request("/", {
-    method: "POST",
-    body: uploadForm(contents, { expiresIn: "5m", ...options }),
-  });
+  const response = await uploadFile(
+    new Request("http://drop.test/api/file", {
+      method: "POST",
+      body: uploadForm(contents, { expiresIn: "5m", ...options }),
+    }),
+  );
 
   expect(response.status).toBe(200);
   const body = (await response.json()) as { id: string };
@@ -44,77 +46,104 @@ describe("file route", () => {
   test("uploads a file, exposes metadata, and downloads the bytes", async () => {
     const id = await upload("hello drop");
 
-    const infoResponse = await fileRoute.request(`/${id}/info`);
+    const infoResponse = getFileInfo(id);
     expect(infoResponse.status).toBe(200);
+    expect(infoResponse.headers.get("Cache-Control")).toBe("no-store");
     expect(await infoResponse.json()).toMatchObject({
       id,
       burnAfterRead: false,
       size: 10,
     });
 
-    const downloadResponse = await fileRoute.request(`/${id}`);
+    const downloadResponse = downloadFile(id);
     expect(downloadResponse.status).toBe(200);
     expect(downloadResponse.headers.get("Content-Type")).toBe("application/octet-stream");
     expect(downloadResponse.headers.get("Content-Length")).toBe("10");
+    expect(downloadResponse.headers.get("Cache-Control")).toBe("no-store");
     expect(await downloadResponse.text()).toBe("hello drop");
 
-    expect((await fileRoute.request(`/${id}/info`)).status).toBe(200);
+    expect(getFileInfo(id).status).toBe(200);
   });
 
   test("burn-after-read files are unavailable after the first download", async () => {
     const id = await upload("secret", { burnAfterRead: true });
 
-    const firstDownload = await fileRoute.request(`/${id}`);
+    const firstDownload = downloadFile(id);
     expect(firstDownload.status).toBe(200);
     expect(await firstDownload.text()).toBe("secret");
 
-    expect((await fileRoute.request(`/${id}/info`)).status).toBe(404);
-    expect((await fileRoute.request(`/${id}`)).status).toBe(404);
+    expect(getFileInfo(id).status).toBe(404);
+    expect(downloadFile(id).status).toBe(404);
   });
 
   test("rejects uploads without a file", async () => {
-    const response = await fileRoute.request("/", {
-      method: "POST",
-      body: new FormData(),
-    });
+    const response = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        body: new FormData(),
+      }),
+    );
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "file field is required" });
   });
 
+  test("rejects cross-site browser uploads", async () => {
+    const response = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        headers: {
+          Origin: "https://evil.test",
+        },
+        body: uploadForm("hello", { expiresIn: "5m" }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Request origin is not allowed." });
+  });
+
   test("rejects uploads above the configured size limit", async () => {
-    const response = await fileRoute.request("/", {
-      method: "POST",
-      body: uploadForm(new Uint8Array(65), { expiresIn: "5m" }),
-    });
+    const response = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        body: uploadForm(new Uint8Array(65), { expiresIn: "5m" }),
+      }),
+    );
 
     expect(response.status).toBe(413);
     expect(await response.json()).toEqual({ error: "File too large" });
   });
 
   test("rejects invalid and excessive lifetimes", async () => {
-    const invalidResponse = await fileRoute.request("/", {
-      method: "POST",
-      body: uploadForm("hello", { expiresIn: "15x" }),
-    });
+    const invalidResponse = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        body: uploadForm("hello", { expiresIn: "15x" }),
+      }),
+    );
     expect(invalidResponse.status).toBe(400);
     expect(await invalidResponse.json()).toEqual({
       error: "Invalid lifetime. Use a duration like 30m, 24h, 7d",
     });
 
-    const looseResponse = await fileRoute.request("/", {
-      method: "POST",
-      body: uploadForm("hello", { expiresIn: "1.5h" }),
-    });
+    const looseResponse = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        body: uploadForm("hello", { expiresIn: "1.5h" }),
+      }),
+    );
     expect(looseResponse.status).toBe(400);
     expect(await looseResponse.json()).toEqual({
       error: "Invalid lifetime. Use a duration like 30m, 24h, 7d",
     });
 
-    const excessiveResponse = await fileRoute.request("/", {
-      method: "POST",
-      body: uploadForm("hello", { expiresIn: "2h" }),
-    });
+    const excessiveResponse = await uploadFile(
+      new Request("http://drop.test/api/file", {
+        method: "POST",
+        body: uploadForm("hello", { expiresIn: "2h" }),
+      }),
+    );
     expect(excessiveResponse.status).toBe(400);
     expect(await excessiveResponse.json()).toEqual({
       error: "expiresIn exceeds maximum allowed TTL",

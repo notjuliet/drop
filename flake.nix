@@ -23,7 +23,6 @@
         };
         packages.drop = pkgs.callPackage ./nix {
           modules = pkgs.callPackage ./nix/modules.nix {};
-          webModules = pkgs.callPackage ./nix/web-modules.nix {};
         };
         packages.default = config.packages.drop;
     };

@@ -11,12 +11,13 @@ stdenv.mkDerivation {
     fileset = lib.fileset.unions [
       ../package.json
       ../bun.lock
+      ../.npmrc
     ];
   };
 
   nativeBuildInputs = [bun];
 
-  outputHash = "sha256-fsXrtXX9bp2NJHHSAjZ3ZCA2OogCWpgNkovhid9cBnI=";
+  outputHash = lib.fakeHash;
   outputHashAlgo = "sha256";
   outputHashMode = "recursive";
 

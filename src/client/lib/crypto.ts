@@ -93,7 +93,7 @@ export async function encryptFiles(files: EncryptFileInput[], key: CryptoKey) {
   if (files.length > MAX_BUNDLE_FILES)
     throw new Error(`Too many files; maximum is ${MAX_BUNDLE_FILES}`);
   if (files.length === 1) {
-    const f = files[0];
+    const f = files[0]!;
     return encrypt(f.fileName, f.fileBuffer, key);
   }
 
